@@ -71,6 +71,8 @@ class LocalSettings {
       "ml_debug.default_clustering_distance";
   static const _kAppMode = "ls.app_mode";
   static const _kAppModeEnvKey = "app_mode";
+  static const kKeepLowResolutionCopy = "keep_low_resolution_copy";
+  static const kLoadFullResolutionOnTap = "load_full_resolution_on_tap";
 
   final SharedPreferences _prefs;
 
@@ -425,5 +427,19 @@ class LocalSettings {
   Future<void> setAppMode(AppMode mode) async {
     await _prefs.setInt(_kAppMode, mode.index);
     _cachedAppMode = mode;
+  }
+
+  bool get keepLowResolutionCopy =>
+      _prefs.getBool(kKeepLowResolutionCopy) ?? false;
+
+  Future<void> setKeepLowResolutionCopy(bool value) async {
+    await _prefs.setBool(kKeepLowResolutionCopy, value);
+  }
+
+  bool get loadFullResolutionOnTap =>
+      _prefs.getBool(kLoadFullResolutionOnTap) ?? false;
+
+  Future<void> setLoadFullResolutionOnTap(bool value) async {
+    await _prefs.setBool(kLoadFullResolutionOnTap, value);
   }
 }

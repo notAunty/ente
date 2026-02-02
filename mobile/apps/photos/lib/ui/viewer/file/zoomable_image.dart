@@ -25,6 +25,7 @@ import 'package:photos/ui/common/loading_widget.dart';
 import 'package:photos/ui/viewer/file/thumbnail_widget.dart';
 import 'package:photos/utils/file_util.dart';
 import 'package:photos/utils/image_util.dart';
+import 'package:photos/utils/local_settings.dart';
 import 'package:photos/utils/thumbnail_util.dart';
 
 class ZoomableImage extends StatefulWidget {
@@ -64,6 +65,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
   bool _showingThumbnailFallback = false;
   ValueChanged<PhotoViewScaleState>? _scaleStateChangedCallback;
   bool _isZooming = false;
+  bool _waitingForZoom = false;
   PhotoViewController _photoViewController = PhotoViewController();
   final _scaleStateController = PhotoViewScaleStateController();
   late final StreamSubscription<FileCaptionUpdatedEvent>
@@ -85,6 +87,10 @@ class _ZoomableImageState extends State<ZoomableImage> {
         widget.shouldDisableScroll!(value != PhotoViewScaleState.initial);
       }
       _isZooming = value != PhotoViewScaleState.initial;
+      if (_waitingForZoom && value != PhotoViewScaleState.initial) {
+        _waitingForZoom = false;
+        _loadFinalImageFromNetwork();
+      }
       debugPrint("isZooming = $_isZooming, currentState $value");
       // _logger.info('is reakky zooming $_isZooming with state $value');
     };
@@ -122,6 +128,16 @@ class _ZoomableImageState extends State<ZoomableImage> {
   Widget build(BuildContext context) {
     if (_photo.isRemoteFile) {
       _loadNetworkImage();
+    } else if (_photo.isOptimized) {
+      // It is a local file, but optimized (low-res).
+      // Behavior depends on settings.
+      if (localSettings.loadFullResolutionOnTap) {
+        _loadLocalImage(context);
+        _loadFinalImageFromNetwork();
+      } else {
+        _waitingForZoom = true;
+        _loadLocalImage(context);
+      }
     } else {
       _loadLocalImage(context);
     }
@@ -308,17 +324,22 @@ class _ZoomableImageState extends State<ZoomableImage> {
       }
     }
     if (!_loadedFinalImage && !_loadingFinalImage) {
-      _loadingFinalImage = true;
-      getFileFromServer(_photo).then((file) {
-        if (file != null) {
-          _onFileLoaded(
-            file,
-          );
-        } else {
-          _loadingFinalImage = false;
-        }
-      });
+      _loadFinalImageFromNetwork();
     }
+  }
+
+  void _loadFinalImageFromNetwork() {
+    if (_loadingFinalImage || _loadedFinalImage) return;
+    _loadingFinalImage = true;
+    getFileFromServer(_photo).then((file) {
+      if (file != null) {
+        _onFileLoaded(
+          file,
+        );
+      } else {
+        _loadingFinalImage = false;
+      }
+    });
   }
 
   void _loadLocalImage(BuildContext context) {
