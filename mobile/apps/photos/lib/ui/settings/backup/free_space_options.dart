@@ -16,6 +16,7 @@ import 'package:photos/ui/components/buttons/button_widget.dart';
 import "package:photos/ui/components/dialog_widget.dart";
 import "package:photos/ui/components/menu_item_widget/menu_item_widget_new.dart";
 import "package:photos/ui/components/models/button_type.dart";
+import "package:photos/ui/components/toggle_switch_widget.dart";
 import "package:photos/ui/notification/toast.dart";
 import "package:photos/ui/tools/debug/app_storage_viewer.dart";
 import "package:photos/ui/tools/deduplicate_page.dart";
@@ -24,6 +25,7 @@ import "package:photos/ui/tools/similar_images_page.dart";
 import "package:photos/ui/viewer/gallery/delete_suggestions_page.dart";
 import "package:photos/ui/viewer/gallery/large_files_page.dart";
 import "package:photos/utils/dialog_util.dart";
+import "package:photos/utils/local_settings.dart";
 
 class FreeUpSpaceOptionsScreen extends StatefulWidget {
   const FreeUpSpaceOptionsScreen({super.key});
@@ -99,6 +101,63 @@ class _FreeUpSpaceOptionsScreenState extends State<FreeUpSpaceOptionsScreen> {
                               .copyWith(color: colorScheme.textMuted),
                         ),
                       ),
+                      MenuItemWidgetNew(
+                        title: AppLocalizations.of(context).keepLowResolutionCopy,
+                        trailingWidget: ToggleSwitchWidget(
+                          value: () => localSettings.keepLowResolutionCopy,
+                          onChanged: () async {
+                            final currentValue =
+                                localSettings.keepLowResolutionCopy;
+                            await localSettings
+                                .setKeepLowResolutionCopy(!currentValue);
+                            if (mounted) {
+                              setState(() {});
+                            }
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 16,
+                          right: 16,
+                          top: 8,
+                          bottom: 16,
+                        ),
+                        child: Text(
+                          AppLocalizations.of(context).keepLowResolutionCopyDesc,
+                          style: textTheme.mini
+                              .copyWith(color: colorScheme.textMuted),
+                        ),
+                      ),
+                      if (localSettings.keepLowResolutionCopy) ...[
+                        MenuItemWidgetNew(
+                          title:
+                              AppLocalizations.of(context).loadFullResolutionOnTap,
+                          trailingWidget: ToggleSwitchWidget(
+                            value: () => localSettings.loadFullResolutionOnTap,
+                            onChanged: () async {
+                              final currentValue =
+                                  localSettings.loadFullResolutionOnTap;
+                              await localSettings
+                                  .setLoadFullResolutionOnTap(!currentValue);
+                            },
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: 16,
+                            right: 16,
+                            top: 8,
+                            bottom: 16,
+                          ),
+                          child: Text(
+                            AppLocalizations.of(context)
+                                .loadFullResolutionOnTapDesc,
+                            style: textTheme.mini
+                                .copyWith(color: colorScheme.textMuted),
+                          ),
+                        ),
+                      ],
                       MenuItemWidgetNew(
                         title: AppLocalizations.of(context).removeDuplicates,
                         trailingIcon: Icons.chevron_right_outlined,

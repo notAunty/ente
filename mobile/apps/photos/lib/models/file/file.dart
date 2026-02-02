@@ -46,6 +46,8 @@ class EnteFile {
   int mMdVersion = 0;
   MagicMetadata? _mmd;
 
+  bool isOptimized = false;
+
   MagicMetadata get magicMetadata =>
       _mmd ?? MagicMetadata.fromEncodedJson(mMdEncodedJson ?? '{}');
 
@@ -275,6 +277,9 @@ class EnteFile {
     if (metadataVersion != null) {
       metadata["version"] = metadataVersion;
     }
+    if (isOptimized) {
+      metadata["isOptimized"] = true;
+    }
     return metadata;
   }
 
@@ -393,6 +398,7 @@ class EnteFile {
     String? pubMmdEncodedJson,
     int? pubMmdVersion,
     PubMagicMetadata? pubMagicMetadata,
+    bool? isOptimized,
   }) {
     return EnteFile()
       ..generatedID = generatedID ?? this.generatedID
@@ -426,6 +432,7 @@ class EnteFile {
       ..magicMetadata = magicMetadata ?? this.magicMetadata
       ..pubMmdEncodedJson = pubMmdEncodedJson ?? this.pubMmdEncodedJson
       ..pubMmdVersion = pubMmdVersion ?? this.pubMmdVersion
-      ..pubMagicMetadata = pubMagicMetadata ?? this.pubMagicMetadata;
+      ..pubMagicMetadata = pubMagicMetadata ?? this.pubMagicMetadata
+      ..isOptimized = isOptimized ?? this.isOptimized;
   }
 }

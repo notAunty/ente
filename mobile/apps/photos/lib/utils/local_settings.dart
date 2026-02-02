@@ -81,10 +81,14 @@ class LocalSettings {
   static const _kDefaultClusteringDistanceOverride =
       "ml_debug.default_clustering_distance";
   static const _kAppMode = "ls.app_mode";
+
   static const _kShowOfflineModeOption = "ls.show_offline_mode_option";
 
   static const _kOfflineFlags = "ls.offline_flags";
   static const _kOfflineMapEnabled = "ls.offline_map_enabled";
+
+  static const kKeepLowResolutionCopy = "keep_low_resolution_copy";
+  static const kLoadFullResolutionOnTap = "load_full_resolution_on_tap";
 
   final SharedPreferences _prefs;
 
@@ -503,4 +507,18 @@ class LocalSettings {
 
   Future<void> setOfflineSettingsBannerDismissed(bool value) =>
       _setFlag(OfflineFlag.offlineSettingsBannerDismissed, value);
+
+  bool get keepLowResolutionCopy =>
+      _prefs.getBool(kKeepLowResolutionCopy) ?? false;
+
+  Future<void> setKeepLowResolutionCopy(bool value) async {
+    await _prefs.setBool(kKeepLowResolutionCopy, value);
+  }
+
+  bool get loadFullResolutionOnTap =>
+      _prefs.getBool(kLoadFullResolutionOnTap) ?? false;
+
+  Future<void> setLoadFullResolutionOnTap(bool value) async {
+    await _prefs.setBool(kLoadFullResolutionOnTap, value);
+  }
 }

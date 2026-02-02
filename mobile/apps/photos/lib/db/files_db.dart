@@ -60,6 +60,7 @@ class FilesDB with SqlDbBase {
   static const columnThumbnailDecryptionHeader = 'thumbnail_decryption_header';
   static const columnMetadataDecryptionHeader = 'metadata_decryption_header';
   static const columnFileSize = 'file_size';
+  static const columnIsOptimized = 'is_optimized';
 
   // MMD -> Magic Metadata
   static const columnMMdEncodedJson = 'mmd_encoded_json';
@@ -90,6 +91,7 @@ class FilesDB with SqlDbBase {
     ...updateIndexes(),
     ...createEntityDataTable(),
     ...addAddedTime(),
+    ...addIsOptimizedColumn(),
   ];
 
   static const List<String> _columnNames = [
@@ -123,6 +125,7 @@ class FilesDB with SqlDbBase {
     columnPubMMdVersion,
     columnFileSize,
     columnAddedTime,
+    columnIsOptimized,
   ];
 
   // make this a singleton class
@@ -413,6 +416,14 @@ class FilesDB with SqlDbBase {
       '''
         CREATE INDEX IF NOT EXISTS added_time_index ON $filesTable($columnAddedTime);
       '''
+    ];
+  }
+
+  static List<String> addIsOptimizedColumn() {
+    return [
+      '''
+        ALTER TABLE $filesTable ADD COLUMN $columnIsOptimized INTEGER DEFAULT 0;
+      ''',
     ];
   }
 
@@ -1063,7 +1074,8 @@ class FilesDB with SqlDbBase {
       'SELECT DISTINCT $columnUploadedFileID FROM $filesTable WHERE '
       '($columnLocalID IS NOT NULL AND $columnOwnerID = ? AND '
       '($columnUploadedFileID IS NOT NULL AND $columnUploadedFileID IS NOT -1) '
-      'AND $columnUpdationTime IS NULL) ORDER BY $columnCreationTime DESC ',
+      'AND $columnUpdationTime IS NULL AND ($columnIsOptimized IS NULL OR $columnIsOptimized != 1)) '
+      'ORDER BY $columnCreationTime DESC ',
       [ownerID],
     );
     final uploadedFileIDs = <int>[];
@@ -1412,6 +1424,18 @@ class FilesDB with SqlDbBase {
       'UPDATE $filesTable SET $columnLocalID = ? WHERE $columnUploadedFileID = ?'
       ' AND $columnLocalID IS NULL',
       [localID, uploadedID],
+    );
+  }
+
+  Future<void> updateLocalIDForOptimizedFile(String oldID, String newID) async {
+    final db = await instance.sqliteAsyncDB;
+    await db.execute(
+      '''
+      UPDATE $filesTable
+      SET $columnLocalID = ?, $columnIsOptimized = 1
+      WHERE $columnLocalID = ?
+      ''',
+      [newID, oldID],
     );
   }
 
@@ -2263,6 +2287,7 @@ class FilesDB with SqlDbBase {
       file.pubMmdVersion,
       file.fileSize,
       file.addedTime ?? -1,
+      file.isOptimized ? 1 : 0,
     ]);
 
     if (omitCollectionId) {
@@ -2327,6 +2352,7 @@ class FilesDB with SqlDbBase {
 
     file.pubMmdVersion = row[columnPubMMdVersion] ?? 0;
     file.pubMmdEncodedJson = row[columnPubMMdEncodedJson] ?? '{}';
+    file.isOptimized = (row[columnIsOptimized] ?? 0) == 1;
     return file;
   }
 }

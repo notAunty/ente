@@ -614,6 +614,10 @@
   "@freeUpDeviceSpaceDescICloud": {
     "description": "Here 'cleared' means 'deleted' from the device"
   },
+  "keepLowResolutionCopy": "Keep a low resolution copy",
+  "keepLowResolutionCopyDesc": "Only load full resolution image when you zoom in.",
+  "loadFullResolutionOnTap": "Load full resolution on tap",
+  "loadFullResolutionOnTapDesc": "Load full resolution image immediately when opening.",
   "allClear": "✨ All clear",
   "noDeviceThatCanBeDeleted": "You've no files on this device that can be deleted",
   "removeDuplicates": "Remove duplicates",
