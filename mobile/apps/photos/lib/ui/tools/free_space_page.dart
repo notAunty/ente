@@ -29,12 +29,8 @@ class FreeSpacePage extends StatefulWidget {
 class _FreeSpacePageState extends State<FreeSpacePage> {
   static const _keepOptimizedCopyTitle = "Keep an optimized copy";
   static const _keepOptimizedCopyDesc =
-      "Only load full-resolution photo when you zoom in. "
-      "For photos, keep an optimized on-device copy. "
+      "For quick preview while offline. Limited to image only. "
       "Videos are removed from device and loaded from cloud.";
-  static const _eagerLoadTitle = "Eager load full resolution";
-  static const _eagerLoadDesc =
-      "Load full-resolution photo immediately when opening.";
 
   @override
   Widget build(BuildContext context) {
@@ -194,35 +190,6 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
                 _keepOptimizedCopyDesc,
                 style: informationTextStyle.copyWith(fontSize: 12),
               ),
-              if (localSettings.keepOptimizedCopy) ...[
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _eagerLoadTitle,
-                        style: informationTextStyle,
-                      ),
-                    ),
-                    ToggleSwitchWidget(
-                      value: () => localSettings.eagerLoadFullResolutionOnOpen,
-                      onChanged: () async {
-                        await localSettings.setEagerLoadFullResolutionOnOpen(
-                          !localSettings.eagerLoadFullResolutionOnOpen,
-                        );
-                        if (mounted) {
-                          setState(() {});
-                        }
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _eagerLoadDesc,
-                  style: informationTextStyle.copyWith(fontSize: 12),
-                ),
-              ],
             ],
           ),
         ),

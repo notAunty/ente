@@ -16,6 +16,7 @@ import 'package:photos/ui/components/buttons/button_widget.dart';
 import "package:photos/ui/components/dialog_widget.dart";
 import "package:photos/ui/components/menu_item_widget/menu_item_widget_new.dart";
 import "package:photos/ui/components/models/button_type.dart";
+import "package:photos/ui/components/toggle_switch_widget.dart";
 import "package:photos/ui/notification/toast.dart";
 import "package:photos/ui/tools/debug/app_storage_viewer.dart";
 import "package:photos/ui/tools/deduplicate_page.dart";
@@ -34,6 +35,11 @@ class FreeUpSpaceOptionsScreen extends StatefulWidget {
 }
 
 class _FreeUpSpaceOptionsScreenState extends State<FreeUpSpaceOptionsScreen> {
+  static const _eagerLoadTitle = "Eager load full resolution";
+  static const _eagerLoadDesc =
+      "Load full-resolution photo immediately when opening. "
+      "Only takes effect when Keep an optimized copy is enabled.";
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +50,7 @@ class _FreeUpSpaceOptionsScreenState extends State<FreeUpSpaceOptionsScreen> {
     final colorScheme = getEnteColorScheme(context);
     final textTheme = getEnteTextTheme(context);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isOptimizedCopyEnabled = localSettings.keepOptimizedCopy;
 
     final pageBackgroundColor =
         isDarkMode ? const Color(0xFF161616) : const Color(0xFFFAFAFA);
@@ -95,6 +102,41 @@ class _FreeUpSpaceOptionsScreenState extends State<FreeUpSpaceOptionsScreen> {
                               (Platform.isIOS
                                   ? " ${AppLocalizations.of(context).freeUpDeviceSpaceDescICloud}"
                                   : ""),
+                          style: textTheme.mini
+                              .copyWith(color: colorScheme.textMuted),
+                        ),
+                      ),
+                      MenuItemWidgetNew(
+                        title: _eagerLoadTitle,
+                        trailingWidget: Opacity(
+                          opacity: isOptimizedCopyEnabled ? 1 : 0.45,
+                          child: IgnorePointer(
+                            ignoring: !isOptimizedCopyEnabled,
+                            child: ToggleSwitchWidget(
+                              value: () =>
+                                  localSettings.eagerLoadFullResolutionOnOpen,
+                              onChanged: () async {
+                                await localSettings
+                                    .setEagerLoadFullResolutionOnOpen(
+                                  !localSettings.eagerLoadFullResolutionOnOpen,
+                                );
+                                if (mounted) {
+                                  setState(() {});
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 16,
+                          right: 16,
+                          top: 8,
+                          bottom: 16,
+                        ),
+                        child: Text(
+                          _eagerLoadDesc,
                           style: textTheme.mini
                               .copyWith(color: colorScheme.textMuted),
                         ),
