@@ -214,9 +214,18 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
   }
 
   Future<void> _freeStorage(FreeableSpaceInfo status) async {
-    bool isSuccess = localSettings.keepOptimizedCopy
-        ? await freeUpByKeepingOptimizedCopy(context, status.localIDs)
-        : await deleteLocalFiles(context, status.localIDs);
+    if (localSettings.keepOptimizedCopy) {
+      final isSuccess =
+          await freeUpByKeepingOptimizedCopy(context, status.localIDs);
+      if (isSuccess) {
+        Navigator.of(context).pop(true);
+      } else {
+        showToast(context, AppLocalizations.of(context).couldNotFreeUpSpace);
+      }
+      return;
+    }
+
+    bool isSuccess = await deleteLocalFiles(context, status.localIDs);
 
     if (isSuccess == false) {
       isSuccess = await deleteLocalFilesAfterRemovingAlreadyDeletedIDs(

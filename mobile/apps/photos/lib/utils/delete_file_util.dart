@@ -426,6 +426,7 @@ Future<bool> freeUpByKeepingOptimizedCopy(
   final List<String> replacedOriginalIDs = [];
   final List<IgnoredFile> ignoredToInsert = [];
   final List<EnteFile> updatedFiles = [];
+  int keptOriginalOnFailure = 0;
 
   for (final file in files) {
     final localID = file.localID;
@@ -447,11 +448,15 @@ Future<bool> freeUpByKeepingOptimizedCopy(
 
     final replaced = await _replaceWithOptimizedCopy(file);
     if (!replaced.success || replaced.newLocalID == null) {
-      fallbackDeleteIDs.add(localID);
+      keptOriginalOnFailure++;
       continue;
     }
 
     final newLocalID = replaced.newLocalID!;
+    if (newLocalID == localID) {
+      keptOriginalOnFailure++;
+      continue;
+    }
     file.localID = newLocalID;
     await FilesDB.instance.updateUploadedFileAcrossCollections(file);
     updatedFiles.add(file);
@@ -475,9 +480,17 @@ Future<bool> freeUpByKeepingOptimizedCopy(
         .fire(LocalPhotosUpdatedEvent(updatedFiles, source: "optimizedCopy"));
   }
 
+  if (keptOriginalOnFailure > 0) {
+    showShortToast(
+      context,
+      'Could not create optimized copy for '
+      '$keptOriginalOnFailure photos. Kept originals.',
+    );
+  }
+
   final idsToDelete = [...fallbackDeleteIDs, ...replacedOriginalIDs];
   if (idsToDelete.isEmpty) {
-    return updatedFiles.isNotEmpty;
+    return true;
   }
   return deleteLocalFiles(context, idsToDelete);
 }
@@ -496,16 +509,30 @@ Future<({bool success, String? newLocalID})> _replaceWithOptimizedCopy(
       return (success: false, newLocalID: null);
     }
 
-    final fileName =
-        "${DateTime.now().microsecondsSinceEpoch}_${file.displayName.replaceAll(' ', '_')}.jpeg";
-    final asset = await PhotoManager.editor.saveImage(
-      bytes,
-      filename: fileName,
-      relativePath: file.deviceFolder,
-    );
+    final fileName = _optimizedCopyFileName(file);
+    final preferredRelativePath = file.deviceFolder?.trim();
+    late final AssetEntity asset;
+    if (preferredRelativePath != null && preferredRelativePath.isNotEmpty) {
+      try {
+        asset = await PhotoManager.editor.saveImage(
+          bytes,
+          filename: fileName,
+          relativePath: preferredRelativePath,
+        );
+      } catch (_) {
+        asset = await PhotoManager.editor.saveImage(
+          bytes,
+          filename: fileName,
+        );
+      }
+    } else {
+      asset = await PhotoManager.editor.saveImage(
+        bytes,
+        filename: fileName,
+      );
+    }
     return (success: true, newLocalID: asset.id);
-  } catch (e, s) {
-    _logger.warning("Failed to create optimized copy", e, s);
+  } catch (_) {
     return (success: false, newLocalID: null);
   }
 }
@@ -531,12 +558,14 @@ Future<Uint8List?> _compressedOptimizedBytes(EnteFile file, File src) async {
     if (compressed == null || compressed.isEmpty) {
       continue;
     }
+
+    final outputBytes = compressed.lengthInBytes;
+
     best = compressed;
-    if (compressed.lengthInBytes <= maxTargetBytes &&
-        compressed.lengthInBytes >= minTargetBytes) {
+    if (outputBytes <= maxTargetBytes && outputBytes >= minTargetBytes) {
       return compressed;
     }
-    if (compressed.lengthInBytes > maxTargetBytes) {
+    if (outputBytes > maxTargetBytes) {
       quality = max(50, quality - 10);
       scale *= 0.9;
       continue;
@@ -544,6 +573,17 @@ Future<Uint8List?> _compressedOptimizedBytes(EnteFile file, File src) async {
     break;
   }
   return best;
+}
+
+String _optimizedCopyFileName(EnteFile file) {
+  final sanitizedName = file.displayName
+      .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+      .replaceAll(' ', '_')
+      .trim();
+  final withoutExtension = sanitizedName.replaceFirst(RegExp(r'\.[^.]+$'), '');
+  final baseName =
+      withoutExtension.isEmpty ? 'ente_optimized_copy' : withoutExtension;
+  return '${baseName}_ente.jpg';
 }
 
 Future<bool> deleteLocalFilesAfterRemovingAlreadyDeletedIDs(
