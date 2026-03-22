@@ -76,7 +76,7 @@ scripts:
 
 
   run:photos:apk:
-    run: melos exec --scope="photos" -- "flutter run -t lib/main.dart --flavor independent"
+    run: melos exec --scope="photos" -- "flutter run -t lib/main.dart --flavor independent --profile"
     description: Run the 'photos' app in independent mode.
 
   run:auth:apk:

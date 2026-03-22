@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:logging/logging.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:photos/core/configuration.dart';
 import 'package:photos/core/constants.dart';
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/db/files_db.dart';
@@ -39,6 +40,8 @@ import 'package:photos/utils/dialog_util.dart';
 import 'package:photos/utils/file_util.dart';
 
 final _logger = Logger("DeleteFileUtil");
+
+typedef OptimizedCopyProgressCallback = void Function(int processed, int total);
 
 Future<void> deleteFilesFromEverywhere(
   BuildContext context,
@@ -411,8 +414,9 @@ Future<bool> deleteLocalFiles(
 
 Future<bool> freeUpByKeepingOptimizedCopy(
   BuildContext context,
-  List<String> localIDs,
-) async {
+  List<String> localIDs, {
+  OptimizedCopyProgressCallback? onProgress,
+}) async {
   final files = await FilesDB.instance.getLocalFiles(
     localIDs,
     dedupeByLocalID: true,
@@ -420,6 +424,15 @@ Future<bool> freeUpByKeepingOptimizedCopy(
   if (files.isEmpty) {
     return true;
   }
+
+  final totalFiles = files.length;
+  int processedFiles = 0;
+  void markProcessed() {
+    processedFiles++;
+    onProgress?.call(processedFiles, totalFiles);
+  }
+
+  onProgress?.call(0, totalFiles);
 
   final ignoredMap = await IgnoredFilesService.instance.idToIgnoreReasonMap;
   final List<String> fallbackDeleteIDs = [];
@@ -431,10 +444,12 @@ Future<bool> freeUpByKeepingOptimizedCopy(
   for (final file in files) {
     final localID = file.localID;
     if (localID == null) {
+      markProcessed();
       continue;
     }
     if (file.fileType != FileType.image || file.uploadedFileID == null) {
       fallbackDeleteIDs.add(localID);
+      markProcessed();
       continue;
     }
 
@@ -443,18 +458,21 @@ Future<bool> freeUpByKeepingOptimizedCopy(
       file,
     );
     if (reason == kIgnoreReasonOptimizedCopy) {
+      markProcessed();
       continue;
     }
 
     final replaced = await _replaceWithOptimizedCopy(file);
     if (!replaced.success || replaced.newLocalID == null) {
       keptOriginalOnFailure++;
+      markProcessed();
       continue;
     }
 
     final newLocalID = replaced.newLocalID!;
     if (newLocalID == localID) {
       keptOriginalOnFailure++;
+      markProcessed();
       continue;
     }
     file.localID = newLocalID;
@@ -469,6 +487,7 @@ Future<bool> freeUpByKeepingOptimizedCopy(
         kIgnoreReasonOptimizedCopy,
       ),
     );
+    markProcessed();
   }
 
   if (ignoredToInsert.isNotEmpty) {
@@ -543,36 +562,103 @@ Future<Uint8List?> _compressedOptimizedBytes(EnteFile file, File src) async {
   Uint8List? best;
   var quality = 88;
   var scale = 1.0;
+  File sourceToCompress = src;
+  File? tempConvertedSource;
 
-  for (int attempt = 0; attempt < 8; attempt++) {
-    final minWidth = max(1280, (file.width * scale).round());
-    final minHeight = max(1280, (file.height * scale).round());
-    final compressed = await FlutterImageCompress.compressWithFile(
-      src.path,
-      minWidth: minWidth,
-      minHeight: minHeight,
-      quality: quality,
-      format: CompressFormat.jpeg,
-      keepExif: true,
-    );
-    if (compressed == null || compressed.isEmpty) {
-      continue;
+  try {
+    if (_isHeifSource(file, src)) {
+      final converted = await FlutterImageCompress.compressAndGetFile(
+        src.path,
+        _tempOptimizedJpegPath(file),
+        quality: 96,
+        format: CompressFormat.jpeg,
+        keepExif: true,
+      );
+      if (converted != null) {
+        tempConvertedSource = File(converted.path);
+        sourceToCompress = tempConvertedSource;
+      } else {
+        _logger.warning(
+          'Could not convert HEIF before compression for ${file.tag}; trying direct compression',
+        );
+      }
     }
 
-    final outputBytes = compressed.lengthInBytes;
+    for (int attempt = 0; attempt < 8; attempt++) {
+      final minWidth = max(1280, (file.width * scale).round());
+      final minHeight = max(1280, (file.height * scale).round());
+      final compressed = await FlutterImageCompress.compressWithFile(
+        sourceToCompress.path,
+        minWidth: minWidth,
+        minHeight: minHeight,
+        quality: quality,
+        format: CompressFormat.jpeg,
+        keepExif: true,
+      );
+      if (compressed == null || compressed.isEmpty) {
+        continue;
+      }
 
-    best = compressed;
-    if (outputBytes <= maxTargetBytes && outputBytes >= minTargetBytes) {
-      return compressed;
+      final outputBytes = compressed.lengthInBytes;
+
+      best = compressed;
+      if (outputBytes <= maxTargetBytes && outputBytes >= minTargetBytes) {
+        return compressed;
+      }
+      if (outputBytes > maxTargetBytes) {
+        quality = max(50, quality - 10);
+        scale *= 0.9;
+        continue;
+      }
+      break;
     }
-    if (outputBytes > maxTargetBytes) {
-      quality = max(50, quality - 10);
-      scale *= 0.9;
-      continue;
+    return best;
+  } finally {
+    if (tempConvertedSource != null && tempConvertedSource.existsSync()) {
+      try {
+        await tempConvertedSource.delete();
+      } catch (_) {
+        // no-op
+      }
     }
-    break;
   }
-  return best;
+}
+
+bool _isHeifSource(EnteFile file, File src) {
+  final srcExt = getExtension(src.path);
+  if (_isHeifExtension(srcExt)) {
+    return true;
+  }
+
+  final displayNameExt = getExtension(file.displayName);
+  if (_isHeifExtension(displayNameExt)) {
+    return true;
+  }
+
+  final title = file.title;
+  if (title != null && _isHeifExtension(getExtension(title))) {
+    return true;
+  }
+  return false;
+}
+
+bool _isHeifExtension(String ext) {
+  return ext == 'heic' || ext == 'heif';
+}
+
+String _tempOptimizedJpegPath(EnteFile file) {
+  final tempDirPath = Configuration.instance.getTempDirectory();
+  final separator = tempDirPath.endsWith(Platform.pathSeparator)
+      ? ''
+      : Platform.pathSeparator;
+  final identity = file.uploadedFileID?.toString() ??
+      file.localID ??
+      DateTime.now().microsecondsSinceEpoch.toString();
+  return tempDirPath +
+      separator +
+      'optimized_copy_' +
+      identity +
+      '_${DateTime.now().microsecondsSinceEpoch}.jpg';
 }
 
 String _optimizedCopyFileName(EnteFile file) {

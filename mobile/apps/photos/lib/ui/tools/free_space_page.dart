@@ -11,6 +11,7 @@ import 'package:photos/ui/common/gradient_button.dart';
 import 'package:photos/ui/components/toggle_switch_widget.dart';
 import "package:photos/ui/notification/toast.dart";
 import 'package:photos/utils/delete_file_util.dart';
+import 'package:photos/utils/dialog_util.dart';
 
 class FreeSpacePage extends StatefulWidget {
   final FreeableSpaceInfo status;
@@ -215,8 +216,24 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
 
   Future<void> _freeStorage(FreeableSpaceInfo status) async {
     if (localSettings.keepOptimizedCopy) {
-      final isSuccess =
-          await freeUpByKeepingOptimizedCopy(context, status.localIDs);
+      final dialog = createProgressDialog(
+        context,
+        AppLocalizations.of(context).processing,
+      );
+      await dialog.show();
+
+      bool isSuccess = false;
+      try {
+        isSuccess = await freeUpByKeepingOptimizedCopy(
+          context,
+          status.localIDs,
+        );
+      } finally {
+        if (dialog.isShowing()) {
+          await dialog.hide();
+        }
+      }
+
       if (isSuccess) {
         Navigator.of(context).pop(true);
       } else {
