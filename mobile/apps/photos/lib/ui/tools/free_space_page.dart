@@ -1,11 +1,10 @@
-import "dart:io";
-
 import 'package:ente_pure_utils/ente_pure_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:logging/logging.dart';
 import "package:photos/generated/l10n.dart";
 import 'package:photos/models/freeable_space_info.dart';
+import 'package:photos/service_locator.dart';
 import 'package:photos/ui/common/gradient_button.dart';
 import "package:photos/ui/notification/toast.dart";
 import 'package:photos/utils/delete_file_util.dart';
@@ -25,6 +24,16 @@ class FreeSpacePage extends StatefulWidget {
 }
 
 class _FreeSpacePageState extends State<FreeSpacePage> {
+  late bool _keepOptimizedCopy;
+  late bool _skipVideos;
+
+  @override
+  void initState() {
+    super.initState();
+    _keepOptimizedCopy = localSettings.keepOptimizedCopyOnFreeSpace;
+    _skipVideos = localSettings.skipVideosOnFreeSpace;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -153,6 +162,41 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
           ),
         ),
         const Padding(padding: EdgeInsets.all(24)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SwitchListTile.adaptive(
+            value: _keepOptimizedCopy,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Keep optimized copy'),
+            subtitle: const Text(
+              'Keep compressed photos on this device for offline viewing.',
+            ),
+            onChanged: (value) async {
+              setState(() {
+                _keepOptimizedCopy = value;
+              });
+              await localSettings.setKeepOptimizedCopyOnFreeSpace(value);
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SwitchListTile.adaptive(
+            value: _skipVideos,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Skip videos'),
+            subtitle: const Text(
+              'Leave videos and Live Photos untouched during free up.',
+            ),
+            onChanged: (value) async {
+              setState(() {
+                _skipVideos = value;
+              });
+              await localSettings.setSkipVideosOnFreeSpace(value);
+            },
+          ),
+        ),
+        const Padding(padding: EdgeInsets.all(8)),
         Container(
           width: double.infinity,
           constraints: const BoxConstraints(
@@ -173,22 +217,15 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
   }
 
   Future<void> _freeStorage(FreeableSpaceInfo status) async {
-    bool isSuccess = await deleteLocalFiles(context, status.localIDs);
+    final result = await freeUpDeviceSpace(
+      context,
+      status,
+      keepOptimizedCopy: _keepOptimizedCopy,
+      skipVideos: _skipVideos,
+    );
 
-    if (isSuccess == false) {
-      isSuccess = await deleteLocalFilesAfterRemovingAlreadyDeletedIDs(
-        context,
-        status.localIDs,
-      );
-    }
-
-    if (isSuccess == false && Platform.isAndroid) {
-      isSuccess =
-          await retryFreeUpSpaceAfterRemovingAssetsNonExistingInDisk(context);
-    }
-
-    if (isSuccess) {
-      Navigator.of(context).pop(true);
+    if (result != null) {
+      Navigator.of(context).pop(result);
     } else {
       showToast(context, AppLocalizations.of(context).couldNotFreeUpSpace);
     }

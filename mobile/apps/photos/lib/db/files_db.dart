@@ -15,6 +15,7 @@ import 'package:photos/models/file_load_result.dart';
 import 'package:photos/models/freeable_space_info.dart';
 import 'package:photos/models/location/location.dart';
 import "package:photos/models/metadata/common_keys.dart";
+import 'package:photos/models/optimized_local_copy.dart';
 import "package:photos/services/filter/db_filters.dart";
 import 'package:photos/utils/file_uploader_util.dart';
 import 'package:sqlite_async/sqlite_async.dart';
@@ -33,6 +34,7 @@ class FilesDB with SqlDbBase {
 
   static const filesTable = 'files';
   static const tempTable = 'temp_files';
+  static const optimizedCopiesTable = 'optimized_copies';
 
   static const columnGeneratedID = '_id';
   static const columnUploadedFileID = 'uploaded_file_id';
@@ -72,6 +74,13 @@ class FilesDB with SqlDbBase {
   // Only parse & store selected fields from JSON in separate columns if
   // we need to write query based on that field
   static const columnMMdVisibility = 'mmd_visibility';
+  static const columnProxyPath = 'proxy_path';
+  static const columnProxySize = 'proxy_size';
+  static const columnProxyWidth = 'proxy_width';
+  static const columnProxyHeight = 'proxy_height';
+  static const columnProxyFormat = 'proxy_format';
+  static const columnProxyVersion = 'proxy_version';
+  static const columnProxyCreatedAt = 'created_at';
 
 //If adding or removing a new column, make sure to update the `_columnNames` list
 //and update `_generateColumnsAndPlaceholdersForInsert` and
@@ -90,6 +99,7 @@ class FilesDB with SqlDbBase {
     ...updateIndexes(),
     ...createEntityDataTable(),
     ...addAddedTime(),
+    ...createOptimizedCopiesTable(),
   ];
 
   static const List<String> _columnNames = [
@@ -416,12 +426,96 @@ class FilesDB with SqlDbBase {
     ];
   }
 
+  static List<String> createOptimizedCopiesTable() {
+    return [
+      '''
+        CREATE TABLE IF NOT EXISTS $optimizedCopiesTable (
+          $columnCollectionID INTEGER NOT NULL,
+          $columnUploadedFileID INTEGER NOT NULL,
+          $columnProxyPath TEXT NOT NULL,
+          $columnProxySize INTEGER NOT NULL DEFAULT 0,
+          $columnProxyWidth INTEGER,
+          $columnProxyHeight INTEGER,
+          $columnProxyFormat TEXT NOT NULL DEFAULT 'jpeg',
+          $columnProxyVersion INTEGER NOT NULL DEFAULT 1,
+          $columnProxyCreatedAt INTEGER NOT NULL,
+          PRIMARY KEY ($columnCollectionID, $columnUploadedFileID)
+        );
+      ''',
+      '''
+        CREATE INDEX IF NOT EXISTS optimized_copies_created_at_idx
+        ON $optimizedCopiesTable($columnProxyCreatedAt);
+      ''',
+    ];
+  }
+
   Future<void> clearTable() async {
     final db = await instance.sqliteAsyncDB;
     await db.execute('DELETE FROM $filesTable');
     await db.execute('DELETE FROM device_files');
     await db.execute('DELETE FROM device_collections');
     await db.execute('DELETE FROM entities');
+    await db.execute('DELETE FROM $optimizedCopiesTable');
+  }
+
+  Future<void> putOptimizedLocalCopy(OptimizedLocalCopy optimizedCopy) async {
+    final db = await instance.sqliteAsyncDB;
+    await db.execute(
+      'INSERT OR REPLACE INTO $optimizedCopiesTable ('
+      '$columnCollectionID, $columnUploadedFileID, $columnProxyPath, '
+      '$columnProxySize, $columnProxyWidth, $columnProxyHeight, '
+      '$columnProxyFormat, $columnProxyVersion, $columnProxyCreatedAt) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        optimizedCopy.collectionID,
+        optimizedCopy.uploadedFileID,
+        optimizedCopy.path,
+        optimizedCopy.size,
+        optimizedCopy.width,
+        optimizedCopy.height,
+        optimizedCopy.format,
+        optimizedCopy.version,
+        optimizedCopy.createdAt,
+      ],
+    );
+  }
+
+  Future<OptimizedLocalCopy?> getOptimizedLocalCopy(EnteFile file) async {
+    if (file.collectionID == null || file.uploadedFileID == null) {
+      return null;
+    }
+    final db = await instance.sqliteAsyncDB;
+    final row = await db.get(
+      'SELECT * FROM $optimizedCopiesTable '
+      'WHERE $columnCollectionID = ? AND $columnUploadedFileID = ?',
+      [file.collectionID, file.uploadedFileID],
+    );
+    if (row.isEmpty) {
+      return null;
+    }
+    return OptimizedLocalCopy(
+      collectionID: row[columnCollectionID] as int,
+      uploadedFileID: row[columnUploadedFileID] as int,
+      path: row[columnProxyPath] as String,
+      size: row[columnProxySize] as int? ?? 0,
+      width: row[columnProxyWidth] as int?,
+      height: row[columnProxyHeight] as int?,
+      format: row[columnProxyFormat] as String? ?? 'jpeg',
+      version: row[columnProxyVersion] as int? ?? 1,
+      createdAt: row[columnProxyCreatedAt] as int? ?? 0,
+    );
+  }
+
+  Future<void> deleteOptimizedLocalCopy(EnteFile file) async {
+    if (file.collectionID == null || file.uploadedFileID == null) {
+      return;
+    }
+    final db = await instance.sqliteAsyncDB;
+    await db.execute(
+      'DELETE FROM $optimizedCopiesTable '
+      'WHERE $columnCollectionID = ? AND $columnUploadedFileID = ?',
+      [file.collectionID, file.uploadedFileID],
+    );
   }
 
   Future<void> deleteDB() async {

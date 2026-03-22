@@ -358,22 +358,23 @@ class _GalleryAppBarWidgetState extends State<GalleryAppBarWidget> {
         AppLocalizations.of(context).youveNoFilesInThisAlbumThatCanBeDeleted,
       );
     } else {
-      final bool? result = await routeToPage(
+      final FreeSpaceResult? result = await routeToPage(
         context,
         FreeSpacePage(status, clearSpaceForFolder: true),
       );
-      if (result == true) {
-        _showSpaceFreedDialog(status);
+      if (result != null) {
+        _showSpaceFreedDialog(result);
       }
     }
   }
 
-  void _showSpaceFreedDialog(FreeableSpaceInfo status) {
+  void _showSpaceFreedDialog(FreeSpaceResult result) {
     showChoiceDialog(
       context,
       title: AppLocalizations.of(context).success,
-      body: AppLocalizations.of(context)
-          .youHaveSuccessfullyFreedUp(storageSaved: formatBytes(status.size)),
+      body: AppLocalizations.of(context).youHaveSuccessfullyFreedUp(
+        storageSaved: formatBytes(result.freedSize),
+      ),
       firstButtonLabel: AppLocalizations.of(context).rateUs,
       firstButtonOnTap: () async {
         await updateService.launchReviewUrl();

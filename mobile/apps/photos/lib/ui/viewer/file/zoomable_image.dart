@@ -25,6 +25,7 @@ import 'package:photos/ui/common/loading_widget.dart';
 import 'package:photos/ui/viewer/file/thumbnail_widget.dart';
 import 'package:photos/utils/file_util.dart';
 import 'package:photos/utils/image_util.dart';
+import 'package:photos/utils/optimized_local_file_util.dart';
 import 'package:photos/utils/thumbnail_util.dart';
 
 class ZoomableImage extends StatefulWidget {
@@ -69,6 +70,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
   late final StreamSubscription<FileCaptionUpdatedEvent>
       _captionUpdatedSubscription;
   late final StreamSubscription<ResetZoomOfPhotoView> _resetZoomSubscription;
+  Timer? _delayedOriginFetchTimer;
 
   // This is to prevent the app from crashing when loading 200MP images
   // https://github.com/flutter/flutter/issues/110331
@@ -85,6 +87,9 @@ class _ZoomableImageState extends State<ZoomableImage> {
         widget.shouldDisableScroll!(value != PhotoViewScaleState.initial);
       }
       _isZooming = value != PhotoViewScaleState.initial;
+      if (_isZooming) {
+        _fetchOriginalIfNeeded();
+      }
       debugPrint("isZooming = $_isZooming, currentState $value");
       // _logger.info('is reakky zooming $_isZooming with state $value');
     };
@@ -113,6 +118,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
   void dispose() {
     _photoViewController.dispose();
     _scaleStateController.dispose();
+    _delayedOriginFetchTimer?.cancel();
     _captionUpdatedSubscription.cancel();
     _resetZoomSubscription.cancel();
     super.dispose();
@@ -307,18 +313,42 @@ class _ZoomableImageState extends State<ZoomableImage> {
         });
       }
     }
+    _maybeLoadOptimizedLocalCopy();
     if (!_loadedFinalImage && !_loadingFinalImage) {
-      _loadingFinalImage = true;
-      getFileFromServer(_photo).then((file) {
-        if (file != null) {
-          _onFileLoaded(
-            file,
-          );
-        } else {
-          _loadingFinalImage = false;
-        }
-      });
+      _scheduleOriginalFetch();
     }
+  }
+
+  void _maybeLoadOptimizedLocalCopy() {
+    if (_loadedFinalImage || _loadingFinalImage) {
+      return;
+    }
+    getOptimizedLocalCopyFile(_photo).then((file) {
+      if (file != null && mounted && !_loadedFinalImage) {
+        _onFileLoaded(file, isFinal: false);
+      }
+    });
+  }
+
+  void _scheduleOriginalFetch() {
+    _delayedOriginFetchTimer ??= Timer(const Duration(seconds: 5), () {
+      _delayedOriginFetchTimer = null;
+      _fetchOriginalIfNeeded();
+    });
+  }
+
+  void _fetchOriginalIfNeeded() {
+    if (_loadedFinalImage || _loadingFinalImage) {
+      return;
+    }
+    _loadingFinalImage = true;
+    getFileFromServer(_photo).then((file) {
+      if (file != null) {
+        _onFileLoaded(file);
+      } else {
+        _loadingFinalImage = false;
+      }
+    });
   }
 
   void _loadLocalImage(BuildContext context) {
@@ -353,9 +383,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
             _isGIF(), // since on iOS GIFs playback only when origin-files are loaded
       ).then((file) {
         if (file != null && file.existsSync()) {
-          _onFileLoaded(
-            file,
-          );
+          _onFileLoaded(file);
         } else {
           _logger.info("File was deleted " + _photo.toString());
           if (_photo.uploadedFileID != null) {
@@ -393,7 +421,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
     }
   }
 
-  void _onFileLoaded(File file) {
+  void _onFileLoaded(File file, {bool isFinal = true}) {
     ImageProvider imageProvider;
     if (isTooLargeImage) {
       _logger.info(
@@ -429,23 +457,33 @@ class _ZoomableImageState extends State<ZoomableImage> {
         },
       ).then((value) {
         if (mounted && !_loadedFinalImage && !_convertToSupportedFormat) {
-          _updateViewWithFinalImage(imageProvider);
+          _updateViewWithLoadedImage(imageProvider, isFinal: isFinal);
         }
       });
     }
   }
 
-  Future<void> _updateViewWithFinalImage(ImageProvider imageProvider) async {
-    await _updatePhotoViewController(
-      previewImageProvider: _imageProvider,
-      finalImageProvider: imageProvider,
-    );
+  Future<void> _updateViewWithLoadedImage(
+    ImageProvider imageProvider, {
+    required bool isFinal,
+  }) async {
+    if (isFinal) {
+      await _updatePhotoViewController(
+        previewImageProvider: _imageProvider,
+        finalImageProvider: imageProvider,
+      );
+    }
     setState(() {
       _imageProvider = imageProvider;
-      _loadedFinalImage = true;
-      _logger.info("Final image loaded");
+      _loadedFinalImage = isFinal;
+      if (!isFinal) {
+        _loadedLargeThumbnail = true;
+      }
+      _logger.info(isFinal ? "Final image loaded" : "Optimized image loaded");
     });
-    widget.onFinalFileLoad?.call(memoryDuration: 5);
+    if (isFinal) {
+      widget.onFinalFileLoad?.call(memoryDuration: 5);
+    }
   }
 
   Future<void> _updatePhotoViewController({
@@ -541,7 +579,7 @@ class _ZoomableImageState extends State<ZoomableImage> {
       unawaited(
         precacheImage(imageProvider, context).then((value) {
           if (mounted) {
-            _updateViewWithFinalImage(imageProvider);
+            _updateViewWithLoadedImage(imageProvider, isFinal: true);
           }
         }),
       );

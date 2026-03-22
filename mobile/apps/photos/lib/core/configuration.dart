@@ -82,6 +82,7 @@ class Configuration {
   late String _tempDocumentsDirPath;
   late String _thumbnailCacheDirectory;
   late String _personFaceThumbnailCacheDirectory;
+  late String _optimizedCopiesDirectory;
 
   late String _sharedDocumentsMediaDirectory;
   String? _volatilePassword;
@@ -105,6 +106,8 @@ class Configuration {
       _personFaceThumbnailCacheDirectory =
           _documentsDirectory + "/person-face-thumbnail-cache";
       Directory(_personFaceThumbnailCacheDirectory).createSync(recursive: true);
+      _optimizedCopiesDirectory = _documentsDirectory + "/optimized-copies";
+      Directory(_optimizedCopiesDirectory).createSync(recursive: true);
       _sharedDocumentsMediaDirectory =
           _documentsDirectory + "/ente-shared-media";
       Directory(_sharedDocumentsMediaDirectory).createSync(recursive: true);
@@ -641,6 +644,10 @@ class Configuration {
 
   String getPersonFaceThumbnailCacheDirectory() {
     return _personFaceThumbnailCacheDirectory;
+  }
+
+  String getOptimizedCopiesDirectory() {
+    return _optimizedCopiesDirectory;
   }
 
   String getSharedMediaDirectory() {

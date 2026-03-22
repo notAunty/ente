@@ -26,6 +26,7 @@ import "package:photos/services/ignored_files_service.dart";
 import "package:photos/services/sync/local_sync_service.dart";
 import "package:photos/utils/file_key.dart";
 import "package:photos/utils/file_util.dart";
+import 'package:photos/utils/optimized_local_file_util.dart';
 
 final _logger = Logger("file_download_util");
 
@@ -367,6 +368,7 @@ Future<void> downloadToGallery(
       if (savedAsset != null) {
         file.localID = savedAsset!.id;
         await FilesDB.instance.insert(file);
+        await deleteOptimizedLocalCopy(file);
         Bus.instance.fire(
           LocalPhotosUpdatedEvent(
             [file],

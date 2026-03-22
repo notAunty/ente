@@ -16,6 +16,7 @@ import 'package:photos/gateways/trash/models/trash_item_request.dart';
 import "package:photos/generated/l10n.dart";
 import "package:photos/l10n/l10n.dart";
 import 'package:photos/models/file/file.dart';
+import 'package:photos/models/file/file_type.dart';
 import "package:photos/models/files_split.dart";
 import "package:photos/models/freeable_space_info.dart";
 import 'package:photos/models/selected_files.dart';
@@ -32,8 +33,105 @@ import 'package:photos/ui/notification/toast.dart';
 import "package:photos/utils/device_info.dart";
 import 'package:photos/utils/dialog_util.dart';
 import 'package:photos/utils/file_util.dart';
+import 'package:photos/utils/optimized_local_file_util.dart';
 
 final _logger = Logger("DeleteFileUtil");
+
+Future<FreeSpaceResult?> freeUpDeviceSpace(
+  BuildContext context,
+  FreeableSpaceInfo status, {
+  required bool keepOptimizedCopy,
+  required bool skipVideos,
+}) async {
+  final localFiles = await FilesDB.instance.getLocalFiles(
+    status.localIDs,
+    dedupeByLocalID: true,
+  );
+  final filesToDelete = <EnteFile>[];
+  var skippedVideosCount = 0;
+  for (final file in localFiles) {
+    if (file.localID == null) {
+      continue;
+    }
+    final shouldSkipVideo = skipVideos &&
+        (file.fileType == FileType.video ||
+            file.fileType == FileType.livePhoto);
+    if (shouldSkipVideo) {
+      skippedVideosCount++;
+      continue;
+    }
+    filesToDelete.add(file);
+  }
+
+  final createdOptimizedCopies = <EnteFile>[];
+  var optimizedBytes = 0;
+  final deletableLocalIDs = <String>[];
+  for (final file in filesToDelete) {
+    var canDeleteOriginal = true;
+    if (keepOptimizedCopy &&
+        file.fileType == FileType.image &&
+        file.isUploaded &&
+        file.collectionID != null) {
+      final optimizedCopy = await createOptimizedLocalCopy(file);
+      if (optimizedCopy == null) {
+        canDeleteOriginal = false;
+      } else {
+        optimizedBytes += optimizedCopy.size;
+        createdOptimizedCopies.add(file);
+      }
+    }
+    if (canDeleteOriginal) {
+      deletableLocalIDs.add(file.localID!);
+    }
+  }
+
+  if (deletableLocalIDs.isEmpty) {
+    return FreeSpaceResult(
+      freedSize: 0,
+      optimizedCount: createdOptimizedCopies.length,
+      skippedVideosCount: skippedVideosCount,
+      keptOptimizedCopy: keepOptimizedCopy,
+    );
+  }
+
+  bool isSuccess = await deleteLocalFiles(context, deletableLocalIDs);
+  if (!isSuccess) {
+    isSuccess = await deleteLocalFilesAfterRemovingAlreadyDeletedIDs(
+      context,
+      deletableLocalIDs,
+    );
+  }
+
+  if (!isSuccess && Platform.isAndroid) {
+    isSuccess = await retryFreeUpSpaceAfterRemovingAssetsNonExistingInDisk(
+      context,
+    );
+  }
+
+  if (!isSuccess) {
+    for (final file in createdOptimizedCopies) {
+      await deleteOptimizedLocalCopy(file);
+    }
+    return null;
+  }
+
+  final freedBytes = filesToDelete.fold<int>(
+        0,
+        (sum, file) =>
+            sum +
+            (deletableLocalIDs.contains(file.localID)
+                ? (file.fileSize ?? 0)
+                : 0),
+      ) -
+      optimizedBytes;
+
+  return FreeSpaceResult(
+    freedSize: max(0, freedBytes),
+    optimizedCount: createdOptimizedCopies.length,
+    skippedVideosCount: skippedVideosCount,
+    keptOptimizedCopy: keepOptimizedCopy,
+  );
+}
 
 Future<void> deleteFilesFromEverywhere(
   BuildContext context,

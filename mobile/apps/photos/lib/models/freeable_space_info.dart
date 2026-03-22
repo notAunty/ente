@@ -15,3 +15,17 @@ class FreeableFileIDs {
 
   FreeableFileIDs(this.localIDs, this.uploadedIDs, this.localSize);
 }
+
+class FreeSpaceResult {
+  final int freedSize;
+  final int optimizedCount;
+  final int skippedVideosCount;
+  final bool keptOptimizedCopy;
+
+  const FreeSpaceResult({
+    required this.freedSize,
+    required this.optimizedCount,
+    required this.skippedVideosCount,
+    required this.keptOptimizedCopy,
+  });
+}

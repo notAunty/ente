@@ -54,6 +54,8 @@ class _AppStorageViewerState extends State<AppStorageViewer> {
         Configuration.instance.getPersonFaceThumbnailCacheDirectory();
     final String cacheDirectory =
         Configuration.instance.getThumbnailCacheDirectory();
+    final String optimizedCopiesDirectory =
+        Configuration.instance.getOptimizedCopiesDirectory();
     final imageCachePath =
         appTemporaryDirectory.path + "/" + DefaultCacheManager.key;
     final videoCachePath =
@@ -72,6 +74,11 @@ class _AppStorageViewerState extends State<AppStorageViewer> {
       PathStorageItem.name(
         cacheDirectory,
         AppLocalizations.of(context).remoteThumbnails,
+        allowCacheClear: true,
+      ),
+      PathStorageItem.name(
+        optimizedCopiesDirectory,
+        'Optimized copies',
         allowCacheClear: true,
       ),
       PathStorageItem.name(

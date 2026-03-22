@@ -15,10 +15,12 @@ import 'package:photos/core/cache/thumbnail_in_memory_cache.dart';
 import 'package:photos/core/cache/video_cache_manager.dart';
 import 'package:photos/core/configuration.dart';
 import 'package:photos/core/constants.dart';
+import 'package:photos/db/files_db.dart';
 import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
 import 'package:photos/utils/file_download_util.dart';
+import 'package:photos/utils/optimized_local_file_util.dart';
 import 'package:photos/utils/thumbnail_util.dart';
 
 final _logger = Logger("FileUtil");
@@ -66,6 +68,12 @@ Future<File?> getFile(
     ) async {
   try {
     if (file.isRemoteFile) {
+      if (!liveVideo && !isOrigin && !forGalleryDownload) {
+        final optimizedLocalCopy = await getOptimizedLocalCopyFile(file);
+        if (optimizedLocalCopy != null) {
+          return optimizedLocalCopy;
+        }
+      }
       return getFileFromServer(
         file,
         liveVideo: liveVideo,
@@ -99,6 +107,9 @@ Future<File?> getFile(
 }
 
 Future<bool> doesLocalFileExist(EnteFile file) async {
+  if (file.isRemoteFile) {
+    return await getOptimizedLocalCopyFile(file) != null;
+  }
   return await _getLocalDiskFile(file) != null;
 }
 
@@ -428,6 +439,7 @@ Future<void> clearCache(EnteFile file) async {
   if (cachedThumbnail.existsSync()) {
     await cachedThumbnail.delete();
   }
+  await FilesDB.instance.deleteOptimizedLocalCopy(file);
   ThumbnailInMemoryLruCache.clearCache(file);
 }
 

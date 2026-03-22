@@ -250,12 +250,12 @@ class _FreeUpSpaceOptionsScreenState extends State<FreeUpSpaceOptionsScreen> {
         ),
       );
     } else {
-      final bool? result = await routeToPage(
+      final FreeSpaceResult? result = await routeToPage(
         context,
         FreeSpacePage(status),
       );
-      if (result == true) {
-        _showSpaceFreedDialog(status);
+      if (result != null) {
+        _showSpaceFreedDialog(result);
       }
     }
   }
@@ -320,7 +320,7 @@ class _FreeUpSpaceOptionsScreenState extends State<FreeUpSpaceOptionsScreen> {
     }
   }
 
-  void _showSpaceFreedDialog(FreeableSpaceInfo status) {
+  void _showSpaceFreedDialog(FreeSpaceResult result) {
     if (localSettings.shouldPromptToRateUs()) {
       localSettings.setRateUsShownCount(
         localSettings.getRateUsShownCount() + 1,
@@ -328,8 +328,9 @@ class _FreeUpSpaceOptionsScreenState extends State<FreeUpSpaceOptionsScreen> {
       showChoiceDialog(
         context,
         title: AppLocalizations.of(context).success,
-        body: AppLocalizations.of(context)
-            .youHaveSuccessfullyFreedUp(storageSaved: formatBytes(status.size)),
+        body: AppLocalizations.of(context).youHaveSuccessfullyFreedUp(
+          storageSaved: formatBytes(result.freedSize),
+        ),
         firstButtonLabel: AppLocalizations.of(context).rateUs,
         firstButtonOnTap: () async {
           await updateService.launchReviewUrl();
@@ -349,8 +350,9 @@ class _FreeUpSpaceOptionsScreenState extends State<FreeUpSpaceOptionsScreen> {
       showDialogWidget(
         context: context,
         title: AppLocalizations.of(context).success,
-        body: AppLocalizations.of(context)
-            .youHaveSuccessfullyFreedUp(storageSaved: formatBytes(status.size)),
+        body: AppLocalizations.of(context).youHaveSuccessfullyFreedUp(
+          storageSaved: formatBytes(result.freedSize),
+        ),
         icon: Icons.download_done_rounded,
         isDismissible: true,
         buttons: [

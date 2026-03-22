@@ -93,6 +93,9 @@ class LocalSettings {
 
   static const _kOfflineFlags = "ls.offline_flags";
   static const _kOfflineMapEnabled = "ls.offline_map_enabled";
+  static const _kFreeSpaceKeepOptimizedCopy =
+      'ls.free_space_keep_optimized_copy';
+  static const _kFreeSpaceSkipVideos = 'ls.free_space_skip_videos';
 
   final SharedPreferences _prefs;
 
@@ -179,6 +182,20 @@ class LocalSettings {
 
   Future<void> setPeopleSimilaritySortSelected(bool value) async {
     await _prefs.setBool(kPeopleSortSimilaritySelected, value);
+  }
+
+  bool get keepOptimizedCopyOnFreeSpace =>
+      _prefs.getBool(_kFreeSpaceKeepOptimizedCopy) ?? false;
+
+  Future<void> setKeepOptimizedCopyOnFreeSpace(bool value) async {
+    await _prefs.setBool(_kFreeSpaceKeepOptimizedCopy, value);
+  }
+
+  bool get skipVideosOnFreeSpace =>
+      _prefs.getBool(_kFreeSpaceSkipVideos) ?? true;
+
+  Future<void> setSkipVideosOnFreeSpace(bool value) async {
+    await _prefs.setBool(_kFreeSpaceSkipVideos, value);
   }
 
   bool get appLockEnabledCached => _prefs.getBool(_kAppLockEnabled) ?? false;
