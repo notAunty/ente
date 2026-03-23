@@ -42,6 +42,7 @@ Future<FreeSpaceResult?> freeUpDeviceSpace(
   FreeableSpaceInfo status, {
   required bool keepOptimizedCopy,
   required bool skipVideos,
+  required bool useSharedProxyStorage,
 }) async {
   final localFiles = await FilesDB.instance.getLocalFiles(
     status.localIDs,
@@ -72,7 +73,10 @@ Future<FreeSpaceResult?> freeUpDeviceSpace(
         file.fileType == FileType.image &&
         file.isUploaded &&
         file.collectionID != null) {
-      final optimizedCopy = await createOptimizedLocalCopy(file);
+      final optimizedCopy = await createOptimizedLocalCopy(
+        file,
+        useSharedStorage: useSharedProxyStorage,
+      );
       if (optimizedCopy == null) {
         canDeleteOriginal = false;
       } else {

@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
+import 'package:photo_manager/photo_manager.dart';
 import 'package:photos/core/configuration.dart';
 import 'package:photos/db/files_db.dart';
 import 'package:photos/models/file/file.dart';
@@ -22,6 +23,22 @@ Future<File?> getOptimizedLocalCopyFile(EnteFile file) async {
   if (optimizedCopy == null) {
     return null;
   }
+
+  if (optimizedCopy.storage == OptimizedLocalCopyStorage.sharedMediaStore) {
+    final localID = optimizedCopy.localID;
+    if (localID == null || localID.isEmpty) {
+      await FilesDB.instance.deleteOptimizedLocalCopy(file);
+      return null;
+    }
+    final asset = await AssetEntity.fromId(localID);
+    final localFile = await asset?.file;
+    if (localFile != null && await localFile.exists()) {
+      return localFile;
+    }
+    await FilesDB.instance.deleteOptimizedLocalCopy(file);
+    return null;
+  }
+
   final localFile = File(optimizedCopy.path);
   if (await localFile.exists()) {
     return localFile;
@@ -34,7 +51,10 @@ Future<bool> hasOptimizedLocalCopy(EnteFile file) async {
   return await getOptimizedLocalCopyFile(file) != null;
 }
 
-Future<OptimizedLocalCopy?> createOptimizedLocalCopy(EnteFile file) async {
+Future<OptimizedLocalCopy?> createOptimizedLocalCopy(
+  EnteFile file, {
+  required bool useSharedStorage,
+}) async {
   if (file.fileType != FileType.image ||
       file.localID == null ||
       file.collectionID == null ||
@@ -47,22 +67,25 @@ Future<OptimizedLocalCopy?> createOptimizedLocalCopy(EnteFile file) async {
     return null;
   }
 
-  final outputFile = await _createCompressedCopy(file, sourceFile);
-  if (outputFile == null || !await outputFile.exists()) {
+  await deleteOptimizedLocalCopy(file);
+
+  final compressedFile = await _createCompressedCopy(
+    file,
+    sourceFile,
+    outputPath: _getTempOutputPath(file),
+  );
+  if (compressedFile == null || !await compressedFile.exists()) {
     return null;
   }
 
-  final optimizedCopy = OptimizedLocalCopy(
-    collectionID: file.collectionID!,
-    uploadedFileID: file.uploadedFileID!,
-    path: outputFile.path,
-    size: await outputFile.length(),
-    width: _targetWidth(file),
-    height: _targetHeight(file),
-    format: 'jpeg',
-    version: kOptimizedCopyVersion,
-    createdAt: DateTime.now().microsecondsSinceEpoch,
-  );
+  final optimizedCopy = useSharedStorage && Platform.isAndroid
+      ? await _createSharedStorageOptimizedCopy(file, compressedFile)
+      : await _createAppPrivateOptimizedCopy(file, compressedFile);
+  if (optimizedCopy == null) {
+    await _safeDeleteFile(compressedFile);
+    return null;
+  }
+
   await FilesDB.instance.putOptimizedLocalCopy(optimizedCopy);
   return optimizedCopy;
 }
@@ -72,6 +95,24 @@ Future<void> deleteOptimizedLocalCopy(EnteFile file) async {
   if (optimizedCopy == null) {
     return;
   }
+
+  if (optimizedCopy.storage == OptimizedLocalCopyStorage.sharedMediaStore) {
+    final localID = optimizedCopy.localID;
+    if (localID != null && localID.isNotEmpty) {
+      try {
+        await PhotoManager.editor.deleteWithIds([localID]);
+      } catch (e, s) {
+        _logger.warning(
+          'Failed to delete shared optimized copy ${file.tag}',
+          e,
+          s,
+        );
+      }
+    }
+    await FilesDB.instance.deleteOptimizedLocalCopy(file);
+    return;
+  }
+
   final localFile = File(optimizedCopy.path);
   if (await localFile.exists()) {
     await localFile.delete();
@@ -86,15 +127,13 @@ Future<void> deleteOptimizedLocalCopy(EnteFile file) async {
   await FilesDB.instance.deleteOptimizedLocalCopy(file);
 }
 
-Future<File?> _createCompressedCopy(EnteFile file, File sourceFile) async {
-  final dirPath = path.join(
-    Configuration.instance.getOptimizedCopiesDirectory(),
-    '${file.collectionID}_${file.uploadedFileID}',
-  );
-  final dir = Directory(dirPath);
+Future<File?> _createCompressedCopy(
+  EnteFile file,
+  File sourceFile, {
+  required String outputPath,
+}) async {
+  final dir = Directory(path.dirname(outputPath));
   await dir.create(recursive: true);
-  final outputPath = path.join(dir.path, 'optimized.jpg');
-
   File? bestFile;
   for (final quality in const [55, 40, 28, 20, 12]) {
     final result = await FlutterImageCompress.compressAndGetFile(
@@ -120,6 +159,109 @@ Future<File?> _createCompressedCopy(EnteFile file, File sourceFile) async {
     _logger.warning('Failed to create optimized copy for ${file.tag}');
   }
   return bestFile;
+}
+
+Future<OptimizedLocalCopy?> _createAppPrivateOptimizedCopy(
+  EnteFile file,
+  File compressedFile,
+) async {
+  final outputPath = _getAppPrivateOutputPath(file);
+  final outputDir = Directory(path.dirname(outputPath));
+  await outputDir.create(recursive: true);
+  final appPrivateFile = await compressedFile.copy(outputPath);
+  if (compressedFile.path != appPrivateFile.path) {
+    await _safeDeleteFile(compressedFile);
+  }
+  return _buildOptimizedLocalCopy(
+    file,
+    path: appPrivateFile.path,
+    size: await appPrivateFile.length(),
+    storage: OptimizedLocalCopyStorage.appPrivate,
+  );
+}
+
+Future<OptimizedLocalCopy?> _createSharedStorageOptimizedCopy(
+  EnteFile file,
+  File compressedFile,
+) async {
+  try {
+    final fileName = _optimizedProxyFileName(file);
+    final asset = await PhotoManager.editor.saveImage(
+      await compressedFile.readAsBytes(),
+      filename: fileName,
+      relativePath: kOptimizedProxyAndroidRelativePath,
+    );
+    return _buildOptimizedLocalCopy(
+      file,
+      path: asset.relativePath == null
+          ? fileName
+          : '${asset.relativePath}/$fileName',
+      localID: asset.id,
+      size: await compressedFile.length(),
+      storage: OptimizedLocalCopyStorage.sharedMediaStore,
+    );
+  } catch (e, s) {
+    _logger.warning(
+      'Failed to create shared optimized copy for ${file.tag}',
+      e,
+      s,
+    );
+    return null;
+  } finally {
+    await _safeDeleteFile(compressedFile);
+  }
+}
+
+OptimizedLocalCopy _buildOptimizedLocalCopy(
+  EnteFile file, {
+  required String path,
+  required int size,
+  String? localID,
+  required OptimizedLocalCopyStorage storage,
+}) {
+  return OptimizedLocalCopy(
+    collectionID: file.collectionID!,
+    uploadedFileID: file.uploadedFileID!,
+    path: path,
+    localID: localID,
+    size: size,
+    width: _targetWidth(file),
+    height: _targetHeight(file),
+    format: 'jpeg',
+    version: kOptimizedCopyVersion,
+    createdAt: DateTime.now().microsecondsSinceEpoch,
+    storage: storage,
+  );
+}
+
+String _getAppPrivateOutputPath(EnteFile file) {
+  return path.join(
+    Configuration.instance.getOptimizedCopiesDirectory(),
+    '${file.collectionID}_${file.uploadedFileID}',
+    'optimized.jpg',
+  );
+}
+
+String _getTempOutputPath(EnteFile file) {
+  return path.join(
+    Configuration.instance.getTempDirectory(),
+    'optimized-copies',
+    '${file.collectionID}_${file.uploadedFileID}',
+    'optimized.jpg',
+  );
+}
+
+String _optimizedProxyFileName(EnteFile file) {
+  final fileNameBase = file.title == null || file.title!.trim().isEmpty
+      ? 'ente_proxy_${file.collectionID}_${file.uploadedFileID}'
+      : path.basenameWithoutExtension(file.title!);
+  return '${fileNameBase}_ente_proxy.jpg';
+}
+
+Future<void> _safeDeleteFile(File file) async {
+  if (await file.exists()) {
+    await file.delete();
+  }
 }
 
 int _deviceTargetLongEdge() {

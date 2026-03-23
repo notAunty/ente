@@ -78,7 +78,7 @@ class _AppStorageViewerState extends State<AppStorageViewer> {
       ),
       PathStorageItem.name(
         optimizedCopiesDirectory,
-        'Optimized copies',
+        'App-private optimized copies',
         allowCacheClear: true,
       ),
       PathStorageItem.name(

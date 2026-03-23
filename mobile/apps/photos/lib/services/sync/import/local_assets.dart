@@ -8,6 +8,7 @@ import 'package:photos/core/errors.dart';
 import 'package:photos/core/event_bus.dart';
 import 'package:photos/events/local_import_progress.dart';
 import 'package:photos/models/file/file.dart';
+import 'package:photos/models/optimized_local_copy.dart';
 import "package:photos/services/sync/import/model.dart";
 import 'package:tuple/tuple.dart';
 
@@ -31,6 +32,9 @@ Future<Tuple2<List<LocalPathAsset>, List<EnteFile>>> getLocalPathAssetsAndFiles(
   final Set<String> alreadySeenLocalIDs = {};
   final List<EnteFile> uniqueFiles = [];
   for (AssetPathEntity pathEntity in pathEntities) {
+    if (isOptimizedProxyPathName(pathEntity.name)) {
+      continue;
+    }
     final List<AssetEntity> assetsInPath = await _getAllAssetLists(pathEntity);
     late Tuple2<Set<String>, List<EnteFile>> result;
     if (assetsInPath.isEmpty) {
@@ -85,6 +89,9 @@ Future<List<Tuple2<AssetPathEntity, String>>>
         const OrderOption(type: OrderOptionType.createDate, asc: false),
   );
   for (AssetPathEntity pathEntity in pathEntities) {
+    if (isOptimizedProxyPathName(pathEntity.name)) {
+      continue;
+    }
     final latestEntity = await pathEntity.getAssetListPaged(
       page: 0,
       size: 1,
@@ -126,8 +133,14 @@ Future<List<LocalPathAsset>> getAllLocalAssets({bool? needsTitle}) async {
   );
   final List<LocalPathAsset> localPathAssets = [];
   for (final assetPath in assetPaths) {
+    if (isOptimizedProxyPathName(assetPath.name)) {
+      continue;
+    }
     final Set<String> localIDs = <String>{};
     for (final asset in await _getAllAssetLists(assetPath)) {
+      if (isOptimizedProxyRelativePath(asset.relativePath)) {
+        continue;
+      }
       localIDs.add(asset.id);
     }
     localPathAssets.add(
@@ -185,7 +198,9 @@ Future<List<AssetPathEntity>> _getGalleryList({
     return 0;
   });
 
-  return galleryList;
+  return galleryList
+      .where((path) => !isOptimizedProxyPathName(path.name))
+      .toList();
 }
 
 Future<List<AssetEntity>> _getAllAssetLists(AssetPathEntity pathEntity) async {
@@ -240,6 +255,9 @@ Future<Tuple2<Set<String>, List<EnteFile>>> _getLocalIDsAndFilesFromAssets(
   final List<EnteFile> files = [];
   final Set<String> localIDs = {};
   for (AssetEntity entity in assetList) {
+    if (isOptimizedProxyRelativePath(entity.relativePath)) {
+      continue;
+    }
     localIDs.add(entity.id);
     final createMs = _safeGetMilliseconds(
       entity.createDateTime,

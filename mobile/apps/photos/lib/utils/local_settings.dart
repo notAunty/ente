@@ -96,6 +96,8 @@ class LocalSettings {
   static const _kFreeSpaceKeepOptimizedCopy =
       'ls.free_space_keep_optimized_copy';
   static const _kFreeSpaceSkipVideos = 'ls.free_space_skip_videos';
+  static const _kFreeSpaceUseSharedProxyStorage =
+      'ls.free_space_use_shared_proxy_storage';
 
   final SharedPreferences _prefs;
 
@@ -196,6 +198,13 @@ class LocalSettings {
 
   Future<void> setSkipVideosOnFreeSpace(bool value) async {
     await _prefs.setBool(_kFreeSpaceSkipVideos, value);
+  }
+
+  bool get useSharedStorageForFreeSpaceProxy =>
+      _prefs.getBool(_kFreeSpaceUseSharedProxyStorage) ?? false;
+
+  Future<void> setUseSharedStorageForFreeSpaceProxy(bool value) async {
+    await _prefs.setBool(_kFreeSpaceUseSharedProxyStorage, value);
   }
 
   bool get appLockEnabledCached => _prefs.getBool(_kAppLockEnabled) ?? false;

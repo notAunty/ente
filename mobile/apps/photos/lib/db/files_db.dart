@@ -81,6 +81,8 @@ class FilesDB with SqlDbBase {
   static const columnProxyFormat = 'proxy_format';
   static const columnProxyVersion = 'proxy_version';
   static const columnProxyCreatedAt = 'created_at';
+  static const columnProxyLocalID = 'proxy_local_id';
+  static const columnProxyStorage = 'proxy_storage';
 
 //If adding or removing a new column, make sure to update the `_columnNames` list
 //and update `_generateColumnsAndPlaceholdersForInsert` and
@@ -100,6 +102,7 @@ class FilesDB with SqlDbBase {
     ...createEntityDataTable(),
     ...addAddedTime(),
     ...createOptimizedCopiesTable(),
+    ...addOptimizedCopyStorageColumns(),
   ];
 
   static const List<String> _columnNames = [
@@ -449,6 +452,19 @@ class FilesDB with SqlDbBase {
     ];
   }
 
+  static List<String> addOptimizedCopyStorageColumns() {
+    return [
+      '''
+        ALTER TABLE $optimizedCopiesTable
+        ADD COLUMN $columnProxyLocalID TEXT;
+      ''',
+      '''
+        ALTER TABLE $optimizedCopiesTable
+        ADD COLUMN $columnProxyStorage INTEGER NOT NULL DEFAULT 0;
+      ''',
+    ];
+  }
+
   Future<void> clearTable() async {
     final db = await instance.sqliteAsyncDB;
     await db.execute('DELETE FROM $filesTable');
@@ -464,8 +480,9 @@ class FilesDB with SqlDbBase {
       'INSERT OR REPLACE INTO $optimizedCopiesTable ('
       '$columnCollectionID, $columnUploadedFileID, $columnProxyPath, '
       '$columnProxySize, $columnProxyWidth, $columnProxyHeight, '
-      '$columnProxyFormat, $columnProxyVersion, $columnProxyCreatedAt) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      '$columnProxyFormat, $columnProxyVersion, $columnProxyCreatedAt, '
+      '$columnProxyLocalID, $columnProxyStorage) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         optimizedCopy.collectionID,
         optimizedCopy.uploadedFileID,
@@ -476,6 +493,8 @@ class FilesDB with SqlDbBase {
         optimizedCopy.format,
         optimizedCopy.version,
         optimizedCopy.createdAt,
+        optimizedCopy.localID,
+        optimizedCopy.storage.index,
       ],
     );
   }
@@ -503,6 +522,10 @@ class FilesDB with SqlDbBase {
       format: row[columnProxyFormat] as String? ?? 'jpeg',
       version: row[columnProxyVersion] as int? ?? 1,
       createdAt: row[columnProxyCreatedAt] as int? ?? 0,
+      localID: row[columnProxyLocalID] as String?,
+      storage: optimizedLocalCopyStorageFromValue(
+        row[columnProxyStorage] as int?,
+      ),
     );
   }
 

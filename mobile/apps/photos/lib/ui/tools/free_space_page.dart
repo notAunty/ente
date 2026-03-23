@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:ente_pure_utils/ente_pure_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -26,12 +28,16 @@ class FreeSpacePage extends StatefulWidget {
 class _FreeSpacePageState extends State<FreeSpacePage> {
   late bool _keepOptimizedCopy;
   late bool _skipVideos;
+  late bool _useSharedProxyStorage;
+  late final bool _canUseSharedProxyStorage;
 
   @override
   void initState() {
     super.initState();
+    _canUseSharedProxyStorage = Platform.isAndroid;
     _keepOptimizedCopy = localSettings.keepOptimizedCopyOnFreeSpace;
     _skipVideos = localSettings.skipVideosOnFreeSpace;
+    _useSharedProxyStorage = localSettings.useSharedStorageForFreeSpaceProxy;
   }
 
   @override
@@ -179,6 +185,7 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
             },
           ),
         ),
+        _buildSharedProxyStorageToggle(),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: SwitchListTile.adaptive(
@@ -222,6 +229,7 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
       status,
       keepOptimizedCopy: _keepOptimizedCopy,
       skipVideos: _skipVideos,
+      useSharedProxyStorage: _useSharedProxyStorage,
     );
 
     if (result != null) {
@@ -229,5 +237,31 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
     } else {
       showToast(context, AppLocalizations.of(context).couldNotFreeUpSpace);
     }
+  }
+
+  Widget _buildSharedProxyStorageToggle() {
+    if (!_canUseSharedProxyStorage) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: SwitchListTile.adaptive(
+        value: _useSharedProxyStorage,
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Save optimized copies to shared storage'),
+        subtitle: const Text(
+          'Android only. Stores optimized copies in Pictures/ente Proxies and hides that folder from Ente imports.',
+        ),
+        onChanged: _keepOptimizedCopy ? _onSharedProxyStorageChanged : null,
+      ),
+    );
+  }
+
+  Future<void> _onSharedProxyStorageChanged(bool value) async {
+    setState(() {
+      _useSharedProxyStorage = value;
+    });
+    await localSettings.setUseSharedStorageForFreeSpaceProxy(value);
   }
 }
