@@ -98,6 +98,8 @@ class LocalSettings {
   static const _kFreeSpaceSkipVideos = 'ls.free_space_skip_videos';
   static const _kFreeSpaceUseSharedProxyStorage =
       'ls.free_space_use_shared_proxy_storage';
+  static const _kDeleteFromDeviceKeepOptimizedCopy =
+      'ls.delete_from_device_keep_optimized_copy';
 
   final SharedPreferences _prefs;
 
@@ -193,6 +195,13 @@ class LocalSettings {
     await _prefs.setBool(_kFreeSpaceKeepOptimizedCopy, value);
   }
 
+  bool get keepOptimizedCopyOnDeleteFromDevice =>
+      _prefs.getBool(_kDeleteFromDeviceKeepOptimizedCopy) ?? false;
+
+  Future<void> setKeepOptimizedCopyOnDeleteFromDevice(bool value) async {
+    await _prefs.setBool(_kDeleteFromDeviceKeepOptimizedCopy, value);
+  }
+
   bool get skipVideosOnFreeSpace =>
       _prefs.getBool(_kFreeSpaceSkipVideos) ?? true;
 
@@ -201,9 +210,16 @@ class LocalSettings {
   }
 
   bool get useSharedStorageForFreeSpaceProxy =>
-      _prefs.getBool(_kFreeSpaceUseSharedProxyStorage) ?? false;
+      useSharedStorageForOptimizedProxy;
 
   Future<void> setUseSharedStorageForFreeSpaceProxy(bool value) async {
+    await setUseSharedStorageForOptimizedProxy(value);
+  }
+
+  bool get useSharedStorageForOptimizedProxy =>
+      _prefs.getBool(_kFreeSpaceUseSharedProxyStorage) ?? false;
+
+  Future<void> setUseSharedStorageForOptimizedProxy(bool value) async {
     await _prefs.setBool(_kFreeSpaceUseSharedProxyStorage, value);
   }
 

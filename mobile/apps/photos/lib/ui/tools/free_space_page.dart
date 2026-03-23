@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:ente_pure_utils/ente_pure_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +7,7 @@ import 'package:photos/models/freeable_space_info.dart';
 import 'package:photos/service_locator.dart';
 import 'package:photos/ui/common/gradient_button.dart';
 import "package:photos/ui/notification/toast.dart";
+import 'package:photos/ui/settings/gallery_settings_screen.dart';
 import 'package:photos/utils/delete_file_util.dart';
 
 class FreeSpacePage extends StatefulWidget {
@@ -26,18 +25,12 @@ class FreeSpacePage extends StatefulWidget {
 }
 
 class _FreeSpacePageState extends State<FreeSpacePage> {
-  late bool _keepOptimizedCopy;
   late bool _skipVideos;
-  late bool _useSharedProxyStorage;
-  late final bool _canUseSharedProxyStorage;
 
   @override
   void initState() {
     super.initState();
-    _canUseSharedProxyStorage = Platform.isAndroid;
-    _keepOptimizedCopy = localSettings.keepOptimizedCopyOnFreeSpace;
     _skipVideos = localSettings.skipVideosOnFreeSpace;
-    _useSharedProxyStorage = localSettings.useSharedStorageForFreeSpaceProxy;
   }
 
   @override
@@ -168,24 +161,7 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
           ),
         ),
         const Padding(padding: EdgeInsets.all(24)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: SwitchListTile.adaptive(
-            value: _keepOptimizedCopy,
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Keep optimized copy'),
-            subtitle: const Text(
-              'Keep compressed photos on this device for offline viewing.',
-            ),
-            onChanged: (value) async {
-              setState(() {
-                _keepOptimizedCopy = value;
-              });
-              await localSettings.setKeepOptimizedCopyOnFreeSpace(value);
-            },
-          ),
-        ),
-        _buildSharedProxyStorageToggle(),
+        _buildOptimizedCopySettingsNote(),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: SwitchListTile.adaptive(
@@ -227,9 +203,9 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
     final result = await freeUpDeviceSpace(
       context,
       status,
-      keepOptimizedCopy: _keepOptimizedCopy,
+      keepOptimizedCopy: localSettings.keepOptimizedCopyOnDeleteFromDevice,
       skipVideos: _skipVideos,
-      useSharedProxyStorage: _useSharedProxyStorage,
+      useSharedProxyStorage: localSettings.useSharedStorageForOptimizedProxy,
     );
 
     if (result != null) {
@@ -239,29 +215,37 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
     }
   }
 
-  Widget _buildSharedProxyStorageToggle() {
-    if (!_canUseSharedProxyStorage) {
-      return const SizedBox.shrink();
-    }
-
+  Widget _buildOptimizedCopySettingsNote() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: SwitchListTile.adaptive(
-        value: _useSharedProxyStorage,
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Save optimized copies to shared storage'),
-        subtitle: const Text(
-          'Android only. Stores optimized copies in Pictures/ente Proxies and hides that folder from Ente imports.',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(16),
         ),
-        onChanged: _keepOptimizedCopy ? _onSharedProxyStorageChanged : null,
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              'Free up device storage honors your Keep optimized copy settings.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            TextButton(
+              onPressed: _openGallerySettings,
+              child: const Text('Update settings here'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Future<void> _onSharedProxyStorageChanged(bool value) async {
-    setState(() {
-      _useSharedProxyStorage = value;
-    });
-    await localSettings.setUseSharedStorageForFreeSpaceProxy(value);
+  Future<void> _openGallerySettings() async {
+    await routeToPage(
+      context,
+      const GallerySettingsScreen(fromGalleryLayoutSettingsCTA: false),
+    );
   }
 }

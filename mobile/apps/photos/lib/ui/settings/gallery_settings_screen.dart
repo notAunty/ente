@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import "package:ente_pure_utils/ente_pure_utils.dart";
 import "package:flutter/material.dart";
 import "package:photos/core/event_bus.dart";
@@ -24,10 +26,12 @@ class GallerySettingsScreen extends StatefulWidget {
 class _GallerySettingsScreenState extends State<GallerySettingsScreen> {
   late int _photoGridSize;
   late String _groupType;
+  late final bool _canUseSharedProxyStorage;
 
   @override
   void initState() {
     super.initState();
+    _canUseSharedProxyStorage = Platform.isAndroid;
     _photoGridSize = localSettings.getPhotoGridSize();
     _groupType = localSettings.getGalleryGroupType().name;
   }
@@ -131,6 +135,50 @@ class _GallerySettingsScreenState extends State<GallerySettingsScreen> {
                             },
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        MenuItemWidgetNew(
+                          title: 'Keep optimized copy on delete from device',
+                          subText:
+                              'For backed up photos, keep a compressed offline copy when you choose Delete from device.',
+                          subTextMaxLines: 3,
+                          titleToSubTextSpacing: 4,
+                          trailingWidget: ToggleSwitchWidget(
+                            value: () => localSettings
+                                .keepOptimizedCopyOnDeleteFromDevice,
+                            onChanged: () async {
+                              final prevSetting = localSettings
+                                  .keepOptimizedCopyOnDeleteFromDevice;
+                              await localSettings
+                                  .setKeepOptimizedCopyOnDeleteFromDevice(
+                                !prevSetting,
+                              );
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                        if (_canUseSharedProxyStorage) ...[
+                          const SizedBox(height: 8),
+                          MenuItemWidgetNew(
+                            title: 'Save optimized copies to shared storage',
+                            subText:
+                                'Android only. Stores optimized copies in Pictures/ente Proxies and hides that folder from Ente imports.',
+                            subTextMaxLines: 3,
+                            titleToSubTextSpacing: 4,
+                            trailingWidget: ToggleSwitchWidget(
+                              value: () => localSettings
+                                  .useSharedStorageForOptimizedProxy,
+                              onChanged: () async {
+                                final prevSetting = localSettings
+                                    .useSharedStorageForOptimizedProxy;
+                                await localSettings
+                                    .setUseSharedStorageForOptimizedProxy(
+                                  !prevSetting,
+                                );
+                                setState(() {});
+                              },
+                            ),
+                          ),
+                        ],
                       ],
                     ],
                   ),
