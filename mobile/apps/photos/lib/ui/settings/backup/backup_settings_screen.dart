@@ -19,8 +19,21 @@ import "package:photos/ui/components/models/button_type.dart";
 import "package:photos/ui/components/toggle_switch_widget.dart";
 import "package:photos/utils/dialog_util.dart";
 
-class BackupSettingsScreen extends StatelessWidget {
+class BackupSettingsScreen extends StatefulWidget {
   const BackupSettingsScreen({super.key});
+
+  @override
+  State<BackupSettingsScreen> createState() => _BackupSettingsScreenState();
+}
+
+class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
+  late final bool _canUseSharedProxyStorage;
+
+  @override
+  void initState() {
+    super.initState();
+    _canUseSharedProxyStorage = Platform.isAndroid;
+  }
 
   static final Debouncer _onlyNewToggleDebouncer = Debouncer(
     const Duration(milliseconds: 500),
@@ -107,6 +120,50 @@ class BackupSettingsScreen extends StatelessWidget {
                               await localSettings.setUserEnabledMultiplePart(
                                 !localSettings.userEnabledMultiplePart,
                               );
+                            },
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      MenuItemWidgetNew(
+                        title: 'Keep optimized copy',
+                        subText:
+                            'For backed up photos, keep a compressed offline copy when you choose Delete from device or Free up device storage.',
+                        subTextMaxLines: 3,
+                        titleToSubTextSpacing: 4,
+                        trailingWidget: ToggleSwitchWidget(
+                          value: () =>
+                              localSettings.keepOptimizedCopyOnDeleteFromDevice,
+                          onChanged: () async {
+                            final prevSetting = localSettings
+                                .keepOptimizedCopyOnDeleteFromDevice;
+                            await localSettings
+                                .setKeepOptimizedCopyOnDeleteFromDevice(
+                              !prevSetting,
+                            );
+                            setState(() {});
+                          },
+                        ),
+                      ),
+                      if (_canUseSharedProxyStorage) ...[
+                        const SizedBox(height: 8),
+                        MenuItemWidgetNew(
+                          title: 'Save optimized copies to shared storage',
+                          subText:
+                              'Android only. Place optimized copies in "Pictures/ente Proxies"',
+                          subTextMaxLines: 2,
+                          titleToSubTextSpacing: 4,
+                          trailingWidget: ToggleSwitchWidget(
+                            value: () =>
+                                localSettings.useSharedStorageForOptimizedProxy,
+                            onChanged: () async {
+                              final prevSetting = localSettings
+                                  .useSharedStorageForOptimizedProxy;
+                              await localSettings
+                                  .setUseSharedStorageForOptimizedProxy(
+                                !prevSetting,
+                              );
+                              setState(() {});
                             },
                           ),
                         ),

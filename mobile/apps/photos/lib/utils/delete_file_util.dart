@@ -154,11 +154,13 @@ Future<void> deleteFilesFromEverywhere(
     }
   }
   Set<String> deletedIDs = <String>{};
-  try {
-    deletedIDs =
-        (await PhotoManager.editor.deleteWithIds(localAssetIDs)).toSet();
-  } catch (e, s) {
-    _logger.severe("Could not delete file", e, s);
+  if (localAssetIDs.isNotEmpty) {
+    try {
+      deletedIDs =
+          (await PhotoManager.editor.deleteWithIds(localAssetIDs)).toSet();
+    } catch (e, s) {
+      _logger.severe("Could not delete file", e, s);
+    }
   }
   deletedIDs.addAll(await _tryDeleteSharedMediaFiles(localSharedMediaIDs));
   final updatedCollectionIDs = <int>{};

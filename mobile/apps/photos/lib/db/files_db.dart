@@ -504,14 +504,15 @@ class FilesDB with SqlDbBase {
       return null;
     }
     final db = await instance.sqliteAsyncDB;
-    final row = await db.get(
+    final rows = await db.getAll(
       'SELECT * FROM $optimizedCopiesTable '
       'WHERE $columnCollectionID = ? AND $columnUploadedFileID = ?',
       [file.collectionID, file.uploadedFileID],
     );
-    if (row.isEmpty) {
+    if (rows.isEmpty) {
       return null;
     }
+    final row = rows.first;
     return OptimizedLocalCopy(
       collectionID: row[columnCollectionID] as int,
       uploadedFileID: row[columnUploadedFileID] as int,

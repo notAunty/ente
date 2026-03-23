@@ -55,39 +55,44 @@ Future<OptimizedLocalCopy?> createOptimizedLocalCopy(
   EnteFile file, {
   required bool useSharedStorage,
 }) async {
-  if (file.fileType != FileType.image ||
-      file.localID == null ||
-      file.collectionID == null ||
-      file.uploadedFileID == null) {
+  try {
+    if (file.fileType != FileType.image ||
+        file.localID == null ||
+        file.collectionID == null ||
+        file.uploadedFileID == null) {
+      return null;
+    }
+
+    final sourceFile = await getFile(file, isOrigin: true);
+    if (sourceFile == null || !await sourceFile.exists()) {
+      return null;
+    }
+
+    await deleteOptimizedLocalCopy(file);
+
+    final compressedFile = await _createCompressedCopy(
+      file,
+      sourceFile,
+      outputPath: _getTempOutputPath(file),
+    );
+    if (compressedFile == null || !await compressedFile.exists()) {
+      return null;
+    }
+
+    final optimizedCopy = useSharedStorage && Platform.isAndroid
+        ? await _createSharedStorageOptimizedCopy(file, compressedFile)
+        : await _createAppPrivateOptimizedCopy(file, compressedFile);
+    if (optimizedCopy == null) {
+      await _safeDeleteFile(compressedFile);
+      return null;
+    }
+
+    await FilesDB.instance.putOptimizedLocalCopy(optimizedCopy);
+    return optimizedCopy;
+  } catch (e, s) {
+    _logger.warning('Failed to create optimized copy for ${file.tag}', e, s);
     return null;
   }
-
-  final sourceFile = await getFile(file, isOrigin: true);
-  if (sourceFile == null || !await sourceFile.exists()) {
-    return null;
-  }
-
-  await deleteOptimizedLocalCopy(file);
-
-  final compressedFile = await _createCompressedCopy(
-    file,
-    sourceFile,
-    outputPath: _getTempOutputPath(file),
-  );
-  if (compressedFile == null || !await compressedFile.exists()) {
-    return null;
-  }
-
-  final optimizedCopy = useSharedStorage && Platform.isAndroid
-      ? await _createSharedStorageOptimizedCopy(file, compressedFile)
-      : await _createAppPrivateOptimizedCopy(file, compressedFile);
-  if (optimizedCopy == null) {
-    await _safeDeleteFile(compressedFile);
-    return null;
-  }
-
-  await FilesDB.instance.putOptimizedLocalCopy(optimizedCopy);
-  return optimizedCopy;
 }
 
 Future<void> deleteOptimizedLocalCopy(EnteFile file) async {

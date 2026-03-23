@@ -6,6 +6,6 @@ class ButtonResult {
   ///relevant/useful and so is not assigned a value when an instance of
   ///ButtonWidget is created.
   final ButtonAction? action;
-  final Exception? exception;
+  final Object? exception;
   ButtonResult([this.action, this.exception]);
 }

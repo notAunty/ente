@@ -7,7 +7,7 @@ import 'package:photos/models/freeable_space_info.dart';
 import 'package:photos/service_locator.dart';
 import 'package:photos/ui/common/gradient_button.dart';
 import "package:photos/ui/notification/toast.dart";
-import 'package:photos/ui/settings/gallery_settings_screen.dart';
+import 'package:photos/ui/settings/backup/backup_settings_screen.dart';
 import 'package:photos/utils/delete_file_util.dart';
 
 class FreeSpacePage extends StatefulWidget {
@@ -160,8 +160,46 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
             ],
           ),
         ),
+        const Padding(padding: EdgeInsets.all(12)),
+        Padding(
+          padding: const EdgeInsets.only(left: 36, right: 40),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.settings_outlined,
+                color: Color.fromRGBO(45, 194, 98, 1.0),
+              ),
+              const Padding(padding: EdgeInsets.all(10)),
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    style: informationTextStyle,
+                    children: [
+                      const TextSpan(
+                        text:
+                            'Free up device storage honors your Keep optimized copy settings, ',
+                      ),
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: GestureDetector(
+                          onTap: _openBackupSettings,
+                          child: Text(
+                            'update them here',
+                            style: informationTextStyle.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const TextSpan(text: '.'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         const Padding(padding: EdgeInsets.all(24)),
-        _buildOptimizedCopySettingsNote(),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: SwitchListTile.adaptive(
@@ -215,37 +253,10 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
     }
   }
 
-  Widget _buildOptimizedCopySettingsNote() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              'Free up device storage honors your Keep optimized copy settings.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            TextButton(
-              onPressed: _openGallerySettings,
-              child: const Text('Update settings here'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openGallerySettings() async {
+  Future<void> _openBackupSettings() async {
     await routeToPage(
       context,
-      const GallerySettingsScreen(fromGalleryLayoutSettingsCTA: false),
+      const BackupSettingsScreen(),
     );
   }
 }

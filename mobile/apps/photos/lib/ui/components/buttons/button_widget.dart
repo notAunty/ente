@@ -203,7 +203,7 @@ class _ButtonChildWidgetState extends State<ButtonChildWidget> {
   double? widthOfButton;
   final _debouncer = Debouncer(const Duration(milliseconds: 300));
   ExecutionState executionState = ExecutionState.idle;
-  Exception? _exception;
+  Object? _exception;
 
   @override
   void initState() {
@@ -430,7 +430,7 @@ class _ButtonChildWidgetState extends State<ButtonChildWidget> {
         },
         onError: (error, stackTrace) {
           executionState = ExecutionState.error;
-          _exception = error as Exception;
+          _exception = error;
           _debouncer.cancelDebounceTimer();
         },
       );
@@ -507,7 +507,7 @@ class _ButtonChildWidgetState extends State<ButtonChildWidget> {
   void _popWithButtonAction(
     BuildContext context, {
     required ButtonAction? buttonAction,
-    Exception? exception,
+    Object? exception,
   }) {
     if (mounted) {
       if (Navigator.of(context).canPop()) {
