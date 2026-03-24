@@ -25,14 +25,6 @@ class FreeSpacePage extends StatefulWidget {
 }
 
 class _FreeSpacePageState extends State<FreeSpacePage> {
-  late bool _skipVideos;
-
-  @override
-  void initState() {
-    super.initState();
-    _skipVideos = localSettings.skipVideosOnFreeSpace;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -200,24 +192,6 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
           ),
         ),
         const Padding(padding: EdgeInsets.all(24)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: SwitchListTile.adaptive(
-            value: _skipVideos,
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Skip videos'),
-            subtitle: const Text(
-              'Leave videos and Live Photos untouched during free up.',
-            ),
-            onChanged: (value) async {
-              setState(() {
-                _skipVideos = value;
-              });
-              await localSettings.setSkipVideosOnFreeSpace(value);
-            },
-          ),
-        ),
-        const Padding(padding: EdgeInsets.all(8)),
         Container(
           width: double.infinity,
           constraints: const BoxConstraints(
@@ -241,9 +215,8 @@ class _FreeSpacePageState extends State<FreeSpacePage> {
     final result = await freeUpDeviceSpace(
       context,
       status,
-      keepOptimizedCopy: localSettings.keepOptimizedCopyOnDeleteFromDevice,
-      skipVideos: _skipVideos,
-      useSharedProxyStorage: localSettings.useSharedStorageForOptimizedProxy,
+      keepPreview: localSettings.keepPreviewOnDeleteFromDevice,
+      useSharedProxyStorage: localSettings.useSharedStorageForPreview,
     );
 
     if (result != null) {

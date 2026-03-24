@@ -90,10 +90,9 @@ class LocalSettings {
       "ml_debug.run_ml_during_interaction";
   static const _kAppMode = "ls.app_mode";
   static const _kShowOfflineModeOption = "ls.show_offline_mode_option";
-  static const _kSkipVideosOnFreeSpace = "ls.skip_videos_on_free_space";
-  static const _kKeepOptimizedCopyOnDeleteFromDevice =
+  static const _kKeepPreviewOnDeleteFromDevice =
       "ls.keep_optimized_copy_on_delete_from_device";
-  static const _kUseSharedStorageForOptimizedProxy =
+  static const _kUseSharedStorageForPreview =
       "ls.use_shared_storage_for_optimized_proxy";
 
   static const _kOfflineFlags = "ls.offline_flags";
@@ -261,25 +260,18 @@ class LocalSettings {
     await _setFlag(OfflineFlag.mapEnabled, value);
   }
 
-  bool get skipVideosOnFreeSpace =>
-      _prefs.getBool(_kSkipVideosOnFreeSpace) ?? false;
+  bool get keepPreviewOnDeleteFromDevice =>
+      _prefs.getBool(_kKeepPreviewOnDeleteFromDevice) ?? false;
 
-  Future<void> setSkipVideosOnFreeSpace(bool value) async {
-    await _prefs.setBool(_kSkipVideosOnFreeSpace, value);
+  Future<void> setKeepPreviewOnDeleteFromDevice(bool value) async {
+    await _prefs.setBool(_kKeepPreviewOnDeleteFromDevice, value);
   }
 
-  bool get keepOptimizedCopyOnDeleteFromDevice =>
-      _prefs.getBool(_kKeepOptimizedCopyOnDeleteFromDevice) ?? false;
+  bool get useSharedStorageForPreview =>
+      _prefs.getBool(_kUseSharedStorageForPreview) ?? false;
 
-  Future<void> setKeepOptimizedCopyOnDeleteFromDevice(bool value) async {
-    await _prefs.setBool(_kKeepOptimizedCopyOnDeleteFromDevice, value);
-  }
-
-  bool get useSharedStorageForOptimizedProxy =>
-      _prefs.getBool(_kUseSharedStorageForOptimizedProxy) ?? false;
-
-  Future<void> setUseSharedStorageForOptimizedProxy(bool value) async {
-    await _prefs.setBool(_kUseSharedStorageForOptimizedProxy, value);
+  Future<void> setUseSharedStorageForPreview(bool value) async {
+    await _prefs.setBool(_kUseSharedStorageForPreview, value);
   }
 
   String get _mlLocalIndexingKey => appMode == AppMode.offline

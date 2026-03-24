@@ -10,13 +10,13 @@ import 'package:photos/core/cache/preview_cache_manager.dart';
 import 'package:photos/core/configuration.dart';
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
-import 'package:photos/models/optimized_local_copy.dart';
+import 'package:photos/models/preview_export_paths.dart';
 import 'package:photos/utils/file_util.dart';
 
 final _logger = Logger('OptimizedLocalFileUtil');
 
 const kPreviewCacheTargetBytes = 256 * 1024;
-const kOptimizedCopyVersion = 1;
+const kPreviewCacheVersion = 1;
 
 class PreviewCachePolicy {
   final bool enabled;
@@ -65,8 +65,6 @@ Future<void> deletePreviewCache(EnteFile file) async {
   }
   await PreviewCacheManager.instance.removeFile(_previewCacheKey(file));
 }
-
-Future<void> reconcilePreviewCache() async {}
 
 Future<void> _cachePreviewForFile(
   EnteFile file, {
@@ -124,7 +122,7 @@ Future<File?> _createCompressedCopy(
       quality: quality,
       minWidth: _targetWidth(file),
       minHeight: _targetHeight(file),
-      keepExif: false,
+      keepExif: true,
       format: CompressFormat.jpeg,
       autoCorrectionAngle: true,
     );
@@ -150,8 +148,8 @@ Future<void> _writeSharedPreviewExport(
   try {
     await PhotoManager.editor.saveImage(
       await compressedFile.readAsBytes(),
-      filename: _optimizedProxyFileName(file),
-      relativePath: kOptimizedProxyAndroidRelativePath,
+      filename: _previewExportFileName(file),
+      relativePath: kPreviewExportAndroidRelativePath,
     );
   } catch (e, s) {
     _logger.warning(
@@ -171,15 +169,15 @@ String _getTempOutputPath(EnteFile file) {
   );
 }
 
-String _optimizedProxyFileName(EnteFile file) {
+String _previewExportFileName(EnteFile file) {
   final fileNameBase = file.title == null || file.title!.trim().isEmpty
-      ? 'ente_proxy_${file.collectionID}_${file.uploadedFileID}'
+      ? 'ente_preview_${file.collectionID}_${file.uploadedFileID}'
       : path.basenameWithoutExtension(file.title!);
-  return '${fileNameBase}_ente_proxy.jpg';
+  return '${fileNameBase}_ente_preview.jpg';
 }
 
 String _previewCacheKey(EnteFile file) {
-  return 'preview_${file.uploadedFileID}_v$kOptimizedCopyVersion';
+  return 'preview_${file.uploadedFileID}_v$kPreviewCacheVersion';
 }
 
 bool _canHavePreview(EnteFile file) {

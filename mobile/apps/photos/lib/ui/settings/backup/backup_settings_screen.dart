@@ -133,12 +133,12 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
                         titleToSubTextSpacing: 4,
                         trailingWidget: ToggleSwitchWidget(
                           value: () =>
-                              localSettings.keepOptimizedCopyOnDeleteFromDevice,
+                              localSettings.keepPreviewOnDeleteFromDevice,
                           onChanged: () async {
-                            final prevSetting = localSettings
-                                .keepOptimizedCopyOnDeleteFromDevice;
+                            final prevSetting =
+                                localSettings.keepPreviewOnDeleteFromDevice;
                             await localSettings
-                                .setKeepOptimizedCopyOnDeleteFromDevice(
+                                .setKeepPreviewOnDeleteFromDevice(
                               !prevSetting,
                             );
                             setState(() {});
@@ -155,12 +155,11 @@ class _BackupSettingsScreenState extends State<BackupSettingsScreen> {
                           titleToSubTextSpacing: 4,
                           trailingWidget: ToggleSwitchWidget(
                             value: () =>
-                                localSettings.useSharedStorageForOptimizedProxy,
+                                localSettings.useSharedStorageForPreview,
                             onChanged: () async {
-                              final prevSetting = localSettings
-                                  .useSharedStorageForOptimizedProxy;
-                              await localSettings
-                                  .setUseSharedStorageForOptimizedProxy(
+                              final prevSetting =
+                                  localSettings.useSharedStorageForPreview;
+                              await localSettings.setUseSharedStorageForPreview(
                                 !prevSetting,
                               );
                               setState(() {});

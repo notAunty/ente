@@ -37,23 +37,20 @@ import 'package:photos/utils/optimized_local_file_util.dart';
 
 final _logger = Logger("DeleteFileUtil");
 
-class _OptimizedCopyPreparationResult {
+class _PreviewPreparationResult {
   final List<EnteFile> filesToDelete;
   final List<EnteFile> previewCandidates;
-  final int skippedVideosCount;
 
-  const _OptimizedCopyPreparationResult({
+  const _PreviewPreparationResult({
     required this.filesToDelete,
     required this.previewCandidates,
-    this.skippedVideosCount = 0,
   });
 }
 
 Future<FreeSpaceResult?> freeUpDeviceSpace(
   BuildContext context,
   FreeableSpaceInfo status, {
-  required bool keepOptimizedCopy,
-  required bool skipVideos,
+  required bool keepPreview,
   required bool useSharedProxyStorage,
 }) async {
   final localFiles = await FilesDB.instance.getLocalFiles(
@@ -62,28 +59,25 @@ Future<FreeSpaceResult?> freeUpDeviceSpace(
   );
   final preparationResult = await _prepareFilesForLocalDeletion(
     localFiles,
-    keepOptimizedCopy: keepOptimizedCopy,
-    skipVideos: skipVideos,
+    keepPreview: keepPreview,
   );
   final filesToDelete = preparationResult.filesToDelete;
   final previewCandidates = preparationResult.previewCandidates;
-  final skippedVideosCount = preparationResult.skippedVideosCount;
   final deletableLocalIDs =
       filesToDelete.map((file) => file.localID).whereType<String>().toList();
 
   if (deletableLocalIDs.isEmpty) {
     return FreeSpaceResult(
       freedSize: 0,
-      optimizedCount: previewCandidates.length,
-      skippedVideosCount: skippedVideosCount,
-      keptOptimizedCopy: keepOptimizedCopy,
+      previewCount: previewCandidates.length,
+      keptPreview: keepPreview,
     );
   }
 
   await enqueuePreviewCacheGeneration(
     previewCandidates,
     policy: PreviewCachePolicy(
-      enabled: keepOptimizedCopy,
+      enabled: keepPreview,
       useSharedStorage: useSharedProxyStorage,
     ),
   );
@@ -115,9 +109,8 @@ Future<FreeSpaceResult?> freeUpDeviceSpace(
 
   return FreeSpaceResult(
     freedSize: freedBytes < 0 ? 0 : freedBytes,
-    optimizedCount: previewCandidates.length,
-    skippedVideosCount: skippedVideosCount,
-    keptOptimizedCopy: keepOptimizedCopy,
+    previewCount: previewCandidates.length,
+    keptPreview: keepPreview,
   );
 }
 
@@ -316,19 +309,18 @@ Future<void> deleteFilesOnDeviceOnly(
       return;
     }
   }
-  final keepOptimizedCopy = localSettings.keepOptimizedCopyOnDeleteFromDevice;
-  final useSharedProxyStorage = localSettings.useSharedStorageForOptimizedProxy;
+  final keepPreview = localSettings.keepPreviewOnDeleteFromDevice;
+  final useSharedProxyStorage = localSettings.useSharedStorageForPreview;
   final preparationResult = await _prepareFilesForLocalDeletion(
     localFiles,
-    keepOptimizedCopy: keepOptimizedCopy,
-    skipVideos: false,
+    keepPreview: keepPreview,
   );
   final filesToDelete = preparationResult.filesToDelete;
   final previewCandidates = preparationResult.previewCandidates;
   await enqueuePreviewCacheGeneration(
     previewCandidates,
     policy: PreviewCachePolicy(
-      enabled: keepOptimizedCopy,
+      enabled: keepPreview,
       useSharedStorage: useSharedProxyStorage,
     ),
   );
@@ -384,29 +376,19 @@ Future<void> deleteFilesOnDeviceOnly(
   }
 }
 
-Future<_OptimizedCopyPreparationResult> _prepareFilesForLocalDeletion(
+Future<_PreviewPreparationResult> _prepareFilesForLocalDeletion(
   List<EnteFile> files, {
-  required bool keepOptimizedCopy,
-  required bool skipVideos,
+  required bool keepPreview,
 }) async {
   final filesToDelete = <EnteFile>[];
   final previewCandidates = <EnteFile>[];
-  var skippedVideosCount = 0;
 
   for (final file in files) {
     final localID = file.localID;
     if (localID == null) {
       continue;
     }
-    final shouldSkipVideo = skipVideos &&
-        (file.fileType == FileType.video ||
-            file.fileType == FileType.livePhoto);
-    if (shouldSkipVideo) {
-      skippedVideosCount++;
-      continue;
-    }
-
-    if (!_shouldCreateOptimizedCopyBeforeDeletion(file, keepOptimizedCopy)) {
+    if (!_shouldCreatePreviewBeforeDeletion(file, keepPreview)) {
       filesToDelete.add(file);
       continue;
     }
@@ -415,18 +397,17 @@ Future<_OptimizedCopyPreparationResult> _prepareFilesForLocalDeletion(
     filesToDelete.add(file);
   }
 
-  return _OptimizedCopyPreparationResult(
+  return _PreviewPreparationResult(
     filesToDelete: filesToDelete,
     previewCandidates: previewCandidates,
-    skippedVideosCount: skippedVideosCount,
   );
 }
 
-bool _shouldCreateOptimizedCopyBeforeDeletion(
+bool _shouldCreatePreviewBeforeDeletion(
   EnteFile file,
-  bool keepOptimizedCopy,
+  bool keepPreview,
 ) {
-  return keepOptimizedCopy &&
+  return keepPreview &&
       file.fileType == FileType.image &&
       file.isUploaded &&
       file.collectionID != null;

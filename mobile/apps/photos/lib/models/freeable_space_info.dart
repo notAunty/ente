@@ -7,15 +7,13 @@ class FreeableSpaceInfo {
 
 class FreeSpaceResult {
   final int freedSize;
-  final int optimizedCount;
-  final int skippedVideosCount;
-  final bool keptOptimizedCopy;
+  final int previewCount;
+  final bool keptPreview;
 
   const FreeSpaceResult({
     required this.freedSize,
-    required this.optimizedCount,
-    this.skippedVideosCount = 0,
-    required this.keptOptimizedCopy,
+    required this.previewCount,
+    required this.keptPreview,
   });
 }
 
