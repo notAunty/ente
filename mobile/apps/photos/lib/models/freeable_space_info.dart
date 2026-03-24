@@ -5,6 +5,20 @@ class FreeableSpaceInfo {
   FreeableSpaceInfo(this.localIDs, this.size);
 }
 
+class FreeSpaceResult {
+  final int freedSize;
+  final int optimizedCount;
+  final int skippedVideosCount;
+  final bool keptOptimizedCopy;
+
+  const FreeSpaceResult({
+    required this.freedSize,
+    required this.optimizedCount,
+    this.skippedVideosCount = 0,
+    required this.keptOptimizedCopy,
+  });
+}
+
 class FreeableFileIDs {
   final List<String> localIDs;
   final List<int> uploadedIDs;

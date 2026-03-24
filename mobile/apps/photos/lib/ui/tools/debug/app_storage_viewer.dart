@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import "package:logging/logging.dart";
 import 'package:path_provider/path_provider.dart';
+import 'package:photos/core/cache/preview_cache_manager.dart';
 import 'package:photos/core/cache/video_cache_manager.dart';
 import 'package:photos/core/configuration.dart';
 import "package:photos/generated/l10n.dart";
@@ -56,6 +57,8 @@ class _AppStorageViewerState extends State<AppStorageViewer> {
         Configuration.instance.getThumbnailCacheDirectory();
     final imageCachePath =
         appTemporaryDirectory.path + "/" + DefaultCacheManager.key;
+    final previewCachePath =
+        appTemporaryDirectory.path + "/" + PreviewCacheManager.key;
     final videoCachePath =
         appTemporaryDirectory.path + "/" + VideoCacheManager.key;
     paths.addAll([
@@ -72,6 +75,11 @@ class _AppStorageViewerState extends State<AppStorageViewer> {
       PathStorageItem.name(
         cacheDirectory,
         AppLocalizations.of(context).remoteThumbnails,
+        allowCacheClear: true,
+      ),
+      PathStorageItem.name(
+        previewCachePath,
+        'Preview cache',
         allowCacheClear: true,
       ),
       PathStorageItem.name(

@@ -19,6 +19,7 @@ import "package:photos/models/file/extensions/file_props.dart";
 import 'package:photos/models/file/file.dart';
 import 'package:photos/models/file/file_type.dart';
 import 'package:photos/utils/file_download_util.dart';
+import 'package:photos/utils/optimized_local_file_util.dart';
 import 'package:photos/utils/thumbnail_util.dart';
 
 final _logger = Logger("FileUtil");
@@ -428,6 +429,7 @@ Future<void> clearCache(EnteFile file) async {
   if (cachedThumbnail.existsSync()) {
     await cachedThumbnail.delete();
   }
+  await deletePreviewCache(file);
   ThumbnailInMemoryLruCache.clearCache(file);
 }
 

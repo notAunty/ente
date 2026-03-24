@@ -33,6 +33,7 @@ class FilesDB with SqlDbBase {
 
   static const filesTable = 'files';
   static const tempTable = 'temp_files';
+  static const optimizedCopiesTable = 'optimized_copies';
 
   static const columnGeneratedID = '_id';
   static const columnUploadedFileID = 'uploaded_file_id';
@@ -72,6 +73,15 @@ class FilesDB with SqlDbBase {
   // Only parse & store selected fields from JSON in separate columns if
   // we need to write query based on that field
   static const columnMMdVisibility = 'mmd_visibility';
+  static const columnProxyPath = 'proxy_path';
+  static const columnProxySize = 'proxy_size';
+  static const columnProxyWidth = 'proxy_width';
+  static const columnProxyHeight = 'proxy_height';
+  static const columnProxyFormat = 'proxy_format';
+  static const columnProxyVersion = 'proxy_version';
+  static const columnProxyCreatedAt = 'created_at';
+  static const columnProxyLocalID = 'proxy_local_id';
+  static const columnProxyStorage = 'proxy_storage';
 
 //If adding or removing a new column, make sure to update the `_columnNames` list
 //and update `_generateColumnsAndPlaceholdersForInsert` and
@@ -90,6 +100,8 @@ class FilesDB with SqlDbBase {
     ...updateIndexes(),
     ...createEntityDataTable(),
     ...addAddedTime(),
+    ...createOptimizedCopiesTable(),
+    ...addOptimizedCopyStorageColumns(),
   ];
 
   static const List<String> _columnNames = [
@@ -416,12 +428,49 @@ class FilesDB with SqlDbBase {
     ];
   }
 
+  static List<String> createOptimizedCopiesTable() {
+    return [
+      '''
+        CREATE TABLE IF NOT EXISTS $optimizedCopiesTable (
+          $columnCollectionID INTEGER NOT NULL,
+          $columnUploadedFileID INTEGER NOT NULL,
+          $columnProxyPath TEXT NOT NULL,
+          $columnProxySize INTEGER NOT NULL DEFAULT 0,
+          $columnProxyWidth INTEGER,
+          $columnProxyHeight INTEGER,
+          $columnProxyFormat TEXT NOT NULL DEFAULT 'jpeg',
+          $columnProxyVersion INTEGER NOT NULL DEFAULT 1,
+          $columnProxyCreatedAt INTEGER NOT NULL,
+          PRIMARY KEY ($columnCollectionID, $columnUploadedFileID)
+        );
+      ''',
+      '''
+        CREATE INDEX IF NOT EXISTS optimized_copies_created_at_idx
+        ON $optimizedCopiesTable($columnProxyCreatedAt);
+      ''',
+    ];
+  }
+
+  static List<String> addOptimizedCopyStorageColumns() {
+    return [
+      '''
+        ALTER TABLE $optimizedCopiesTable
+        ADD COLUMN $columnProxyLocalID TEXT;
+      ''',
+      '''
+        ALTER TABLE $optimizedCopiesTable
+        ADD COLUMN $columnProxyStorage INTEGER NOT NULL DEFAULT 0;
+      ''',
+    ];
+  }
+
   Future<void> clearTable() async {
     final db = await instance.sqliteAsyncDB;
     await db.execute('DELETE FROM $filesTable');
     await db.execute('DELETE FROM device_files');
     await db.execute('DELETE FROM device_collections');
     await db.execute('DELETE FROM entities');
+    await db.execute('DELETE FROM $optimizedCopiesTable');
   }
 
   Future<void> deleteDB() async {

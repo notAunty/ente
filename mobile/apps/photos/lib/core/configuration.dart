@@ -82,7 +82,6 @@ class Configuration {
   late String _tempDocumentsDirPath;
   late String _thumbnailCacheDirectory;
   late String _personFaceThumbnailCacheDirectory;
-
   late String _sharedDocumentsMediaDirectory;
   String? _volatilePassword;
 

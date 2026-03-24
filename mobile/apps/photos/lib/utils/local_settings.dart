@@ -90,6 +90,11 @@ class LocalSettings {
       "ml_debug.run_ml_during_interaction";
   static const _kAppMode = "ls.app_mode";
   static const _kShowOfflineModeOption = "ls.show_offline_mode_option";
+  static const _kSkipVideosOnFreeSpace = "ls.skip_videos_on_free_space";
+  static const _kKeepOptimizedCopyOnDeleteFromDevice =
+      "ls.keep_optimized_copy_on_delete_from_device";
+  static const _kUseSharedStorageForOptimizedProxy =
+      "ls.use_shared_storage_for_optimized_proxy";
 
   static const _kOfflineFlags = "ls.offline_flags";
   static const _kOfflineMapEnabled = "ls.offline_map_enabled";
@@ -254,6 +259,27 @@ class LocalSettings {
   Future<void> setOfflineMapEnabled(bool value) async {
     await _prefs.setBool(_kOfflineMapEnabled, value);
     await _setFlag(OfflineFlag.mapEnabled, value);
+  }
+
+  bool get skipVideosOnFreeSpace =>
+      _prefs.getBool(_kSkipVideosOnFreeSpace) ?? false;
+
+  Future<void> setSkipVideosOnFreeSpace(bool value) async {
+    await _prefs.setBool(_kSkipVideosOnFreeSpace, value);
+  }
+
+  bool get keepOptimizedCopyOnDeleteFromDevice =>
+      _prefs.getBool(_kKeepOptimizedCopyOnDeleteFromDevice) ?? false;
+
+  Future<void> setKeepOptimizedCopyOnDeleteFromDevice(bool value) async {
+    await _prefs.setBool(_kKeepOptimizedCopyOnDeleteFromDevice, value);
+  }
+
+  bool get useSharedStorageForOptimizedProxy =>
+      _prefs.getBool(_kUseSharedStorageForOptimizedProxy) ?? false;
+
+  Future<void> setUseSharedStorageForOptimizedProxy(bool value) async {
+    await _prefs.setBool(_kUseSharedStorageForOptimizedProxy, value);
   }
 
   String get _mlLocalIndexingKey => appMode == AppMode.offline

@@ -16,6 +16,7 @@ import 'package:photos/gateways/trash/models/trash_item_request.dart';
 import "package:photos/generated/l10n.dart";
 import "package:photos/l10n/l10n.dart";
 import 'package:photos/models/file/file.dart';
+import 'package:photos/models/file/file_type.dart';
 import "package:photos/models/files_split.dart";
 import "package:photos/models/freeable_space_info.dart";
 import 'package:photos/models/selected_files.dart';
@@ -32,8 +33,93 @@ import 'package:photos/ui/notification/toast.dart';
 import "package:photos/utils/device_info.dart";
 import 'package:photos/utils/dialog_util.dart';
 import 'package:photos/utils/file_util.dart';
+import 'package:photos/utils/optimized_local_file_util.dart';
 
 final _logger = Logger("DeleteFileUtil");
+
+class _OptimizedCopyPreparationResult {
+  final List<EnteFile> filesToDelete;
+  final List<EnteFile> previewCandidates;
+  final int skippedVideosCount;
+
+  const _OptimizedCopyPreparationResult({
+    required this.filesToDelete,
+    required this.previewCandidates,
+    this.skippedVideosCount = 0,
+  });
+}
+
+Future<FreeSpaceResult?> freeUpDeviceSpace(
+  BuildContext context,
+  FreeableSpaceInfo status, {
+  required bool keepOptimizedCopy,
+  required bool skipVideos,
+  required bool useSharedProxyStorage,
+}) async {
+  final localFiles = await FilesDB.instance.getLocalFiles(
+    status.localIDs,
+    dedupeByLocalID: true,
+  );
+  final preparationResult = await _prepareFilesForLocalDeletion(
+    localFiles,
+    keepOptimizedCopy: keepOptimizedCopy,
+    skipVideos: skipVideos,
+  );
+  final filesToDelete = preparationResult.filesToDelete;
+  final previewCandidates = preparationResult.previewCandidates;
+  final skippedVideosCount = preparationResult.skippedVideosCount;
+  final deletableLocalIDs =
+      filesToDelete.map((file) => file.localID).whereType<String>().toList();
+
+  if (deletableLocalIDs.isEmpty) {
+    return FreeSpaceResult(
+      freedSize: 0,
+      optimizedCount: previewCandidates.length,
+      skippedVideosCount: skippedVideosCount,
+      keptOptimizedCopy: keepOptimizedCopy,
+    );
+  }
+
+  await enqueuePreviewCacheGeneration(
+    previewCandidates,
+    policy: PreviewCachePolicy(
+      enabled: keepOptimizedCopy,
+      useSharedStorage: useSharedProxyStorage,
+    ),
+  );
+
+  bool isSuccess = await deleteLocalFiles(context, deletableLocalIDs);
+  if (!isSuccess) {
+    isSuccess = await deleteLocalFilesAfterRemovingAlreadyDeletedIDs(
+      context,
+      deletableLocalIDs,
+    );
+  }
+
+  if (!isSuccess && Platform.isAndroid) {
+    isSuccess = await retryFreeUpSpaceAfterRemovingAssetsNonExistingInDisk(
+      context,
+    );
+  }
+
+  if (!isSuccess) {
+    return null;
+  }
+
+  final freedBytes = filesToDelete.fold<int>(
+    0,
+    (sum, file) =>
+        sum +
+        (deletableLocalIDs.contains(file.localID) ? (file.fileSize ?? 0) : 0),
+  );
+
+  return FreeSpaceResult(
+    freedSize: freedBytes < 0 ? 0 : freedBytes,
+    optimizedCount: previewCandidates.length,
+    skippedVideosCount: skippedVideosCount,
+    keptOptimizedCopy: keepOptimizedCopy,
+  );
+}
 
 Future<void> deleteFilesFromEverywhere(
   BuildContext context,
@@ -66,11 +152,13 @@ Future<void> deleteFilesFromEverywhere(
     }
   }
   Set<String> deletedIDs = <String>{};
-  try {
-    deletedIDs =
-        (await PhotoManager.editor.deleteWithIds(localAssetIDs)).toSet();
-  } catch (e, s) {
-    _logger.severe("Could not delete file", e, s);
+  if (localAssetIDs.isNotEmpty) {
+    try {
+      deletedIDs =
+          (await PhotoManager.editor.deleteWithIds(localAssetIDs)).toSet();
+    } catch (e, s) {
+      _logger.severe("Could not delete file", e, s);
+    }
   }
   deletedIDs.addAll(await _tryDeleteSharedMediaFiles(localSharedMediaIDs));
   final updatedCollectionIDs = <int>{};
@@ -203,6 +291,7 @@ Future<void> deleteFilesOnDeviceOnly(
   final List<String> alreadyDeletedIDs = []; // to ignore already deleted files
   final List<String?> localOnlyIDs = [];
   bool hasLocalOnlyFiles = false;
+  final List<EnteFile> localFiles = [];
   for (final file in files) {
     if (file.localID != null) {
       if (!(await _localFileExist(file))) {
@@ -210,8 +299,10 @@ Future<void> deleteFilesOnDeviceOnly(
         alreadyDeletedIDs.add(file.localID!);
       } else if (file.isSharedMediaToAppSandbox) {
         localSharedMediaIDs.add(file.localID!);
+        localFiles.add(file);
       } else {
         localAssetIDs.add(file.localID!);
+        localFiles.add(file);
       }
     }
     if (file.uploadedFileID == null) {
@@ -225,6 +316,38 @@ Future<void> deleteFilesOnDeviceOnly(
       return;
     }
   }
+  final keepOptimizedCopy = localSettings.keepOptimizedCopyOnDeleteFromDevice;
+  final useSharedProxyStorage = localSettings.useSharedStorageForOptimizedProxy;
+  final preparationResult = await _prepareFilesForLocalDeletion(
+    localFiles,
+    keepOptimizedCopy: keepOptimizedCopy,
+    skipVideos: false,
+  );
+  final filesToDelete = preparationResult.filesToDelete;
+  final previewCandidates = preparationResult.previewCandidates;
+  await enqueuePreviewCacheGeneration(
+    previewCandidates,
+    policy: PreviewCachePolicy(
+      enabled: keepOptimizedCopy,
+      useSharedStorage: useSharedProxyStorage,
+    ),
+  );
+  localAssetIDs
+    ..clear()
+    ..addAll(
+      filesToDelete
+          .where((file) => !file.isSharedMediaToAppSandbox)
+          .map((file) => file.localID)
+          .whereType<String>(),
+    );
+  localSharedMediaIDs
+    ..clear()
+    ..addAll(
+      filesToDelete
+          .where((file) => file.isSharedMediaToAppSandbox)
+          .map((file) => file.localID)
+          .whereType<String>(),
+    );
   Set<String> deletedIDs = <String>{};
   try {
     deletedIDs =
@@ -234,7 +357,10 @@ Future<void> deleteFilesOnDeviceOnly(
   }
   deletedIDs.addAll(await _tryDeleteSharedMediaFiles(localSharedMediaIDs));
   final List<EnteFile> deletedFiles = [];
-  for (final file in files) {
+  for (final file in [
+    ...filesToDelete,
+    ...files.where((file) => file.localID == null),
+  ]) {
     // Remove only those files that have been removed from disk
     if (deletedIDs.contains(file.localID) ||
         alreadyDeletedIDs.contains(file.localID)) {
@@ -256,6 +382,54 @@ Future<void> deleteFilesOnDeviceOnly(
       ),
     );
   }
+}
+
+Future<_OptimizedCopyPreparationResult> _prepareFilesForLocalDeletion(
+  List<EnteFile> files, {
+  required bool keepOptimizedCopy,
+  required bool skipVideos,
+}) async {
+  final filesToDelete = <EnteFile>[];
+  final previewCandidates = <EnteFile>[];
+  var skippedVideosCount = 0;
+
+  for (final file in files) {
+    final localID = file.localID;
+    if (localID == null) {
+      continue;
+    }
+    final shouldSkipVideo = skipVideos &&
+        (file.fileType == FileType.video ||
+            file.fileType == FileType.livePhoto);
+    if (shouldSkipVideo) {
+      skippedVideosCount++;
+      continue;
+    }
+
+    if (!_shouldCreateOptimizedCopyBeforeDeletion(file, keepOptimizedCopy)) {
+      filesToDelete.add(file);
+      continue;
+    }
+
+    previewCandidates.add(file);
+    filesToDelete.add(file);
+  }
+
+  return _OptimizedCopyPreparationResult(
+    filesToDelete: filesToDelete,
+    previewCandidates: previewCandidates,
+    skippedVideosCount: skippedVideosCount,
+  );
+}
+
+bool _shouldCreateOptimizedCopyBeforeDeletion(
+  EnteFile file,
+  bool keepOptimizedCopy,
+) {
+  return keepOptimizedCopy &&
+      file.fileType == FileType.image &&
+      file.isUploaded &&
+      file.collectionID != null;
 }
 
 Future<bool> deleteFromTrash(BuildContext context, List<EnteFile> files) async {
